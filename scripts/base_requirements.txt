@@ -1,0 +1,12 @@
+aioftp
+fastapi
+pydantic
+pydantic-settings
+uvicorn
+httpx
+python-multipart
+colorama
+loguru
+python-dotenv
+prometheus-client
+kubernetes_asyncio
