@@ -20,6 +20,12 @@ class Config(BasicSettings):
         examples=["eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJPbmxpbmUgSldUIEJ1aWxkZXIiLCJpYXQiOjE3NTM2MzkyMzQsImV4cCI6MTc4NTE3NTIzNCwiYXVkIjoid3d3LmV4YW1wbGUuY29tIiwic3ViIjoianJvY2tldEBleGFtcGxlLmNvbSIsIkdpdmVuTmFtZSI6IkpvaG5ueSIsIlN1cm5hbWUiOiJUaGUgR09BVCIsIkVtYWlsIjoiam9oblRoZUdvYXRAc2hla2VyLmNvbSIsIlJvbGUiOlsiS2luZyIsIkdvYXQiXX0.80uewOWbkWMT8XeLfTXGr8ohiOQt98neFgH8P6lX6bw"]
     )
 
+    APPLICATION_SET_TIMEOUT: int = Field(
+        default=60,
+        description="The time in seconds to wait for an application set create application.",
+        examples=[10, 15],
+    )
+
     @classmethod
     def get_instance(cls):
         if cls._instance is None:

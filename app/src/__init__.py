@@ -5,5 +5,5 @@ from .schemas.loader import SchemaLoader
 async_background_tasks = []
 
 def update_app(app: FastAPI) -> FastAPI:
-    app.include_router(get_provision_router(SchemaLoader().load_all_schemas()), prefix="/v1")
+    app.include_router(get_provision_router(app), prefix="/v1")
     return app

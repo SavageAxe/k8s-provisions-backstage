@@ -12,6 +12,7 @@ class GitValuesWriter:
         rel_path = f"{region}/{namespace}/{app_name}.yaml"
         temp_dir = tempfile.mkdtemp()
         try:
+            # REFACTOR THIS with some of tyk orc git logic
             git_ssh_cmd = f'ssh -i ~/.ssh/new_key -o StrictHostKeyChecking=no'
             os.environ['GIT_SSH_COMMAND'] = git_ssh_cmd
             repo = git.Repo.clone_from(repo_url, temp_dir)

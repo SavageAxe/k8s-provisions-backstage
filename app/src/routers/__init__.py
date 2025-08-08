@@ -1,4 +1,4 @@
 from .provision import ProvisionRouter
 
-def get_provision_router(schemas_cache):
-    return ProvisionRouter(schemas_cache).router
+def get_provision_router(app):
+    return ProvisionRouter(app).router
