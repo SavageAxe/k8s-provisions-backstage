@@ -34,7 +34,7 @@ class ProvisionRouter:
                 self._make_resource_handler(resource),
                 methods=["GET"],
                 name=f"get apps statuses for {resource}",
-                tags=[resource],
+                tags=["get status"],
             )
 
             for version in versions:
@@ -45,7 +45,7 @@ class ProvisionRouter:
                         self._make_version_handler(resource, version),
                         methods=["POST"],
                         name=f"provision_{resource}_{version}",
-                        tags=[resource, version],
+                        tags=["provision"],
                     )
 
                     self.router.add_api_route(
@@ -53,7 +53,7 @@ class ProvisionRouter:
                         self._get_schema(resource, version),
                         methods=["GET"],
                         name=f"get {resource} {version}'s schema",
-                        tags=[resource, version, "get schema"],
+                        tags=["get schema"],
                     )
 
                     self.router.add_api_route(
@@ -61,7 +61,7 @@ class ProvisionRouter:
                         self._reload_schema(resource, version),
                         methods=["POST"],
                         name=f"reload {resource} {version}'s schema",
-                        tags=[resource, version, "reload schema"],
+                        tags=["reload schema"],
                     )
 
 
@@ -168,12 +168,12 @@ class ProvisionRouter:
             self._make_version_handler(resource, version),
             methods=["POST"],
             name=f"provision_{resource}_{version}",
-            tags=[resource, version],
+            tags=["provision"],
         )
         self.app.router.add_api_route(
             schema_path,
             self._get_schema(resource, version),
             methods=["GET"],
             name=f"get_{resource}_{version}_schema",
-            tags=[resource, version, "get schema"],
+            tags=["get schema"],
         )
