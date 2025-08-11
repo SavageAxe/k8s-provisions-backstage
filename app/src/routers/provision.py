@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 from starlette.responses import JSONResponse
 
@@ -10,6 +13,8 @@ from loguru import logger
 import re
 from app.src.services.argocd import ArgoCD
 from app.src.models.resource_metadata import ResourceMetadata
+from ...general.utils import basicSettings
+
 
 class ProvisionRouter:
     def __init__(self, app):
@@ -28,9 +33,17 @@ class ProvisionRouter:
 
         for resource, versions in self.schemas.resolved_schemas.items():
 
-            path = f"/{resource}/status"
+
             self.router.add_api_route(
-                path,
+                f"/{resource}",
+                self._add_version(resource),
+                methods=["POST"],
+                name=f"add version to {resource}",
+                tags=["add version"],
+            )
+
+            self.router.add_api_route(
+                f"/{resource}/status",
                 self._make_resource_handler(resource),
                 methods=["GET"],
                 name=f"get apps statuses for {resource}",
@@ -39,33 +52,81 @@ class ProvisionRouter:
 
             for version in versions:
                 if re.fullmatch(r"\d+\.\d+\.\d+", version):
-                    path = f"/{resource}/{version}"
-                    self.router.add_api_route(
-                        path,
-                        self._make_version_handler(resource, version),
-                        methods=["POST"],
-                        name=f"provision_{resource}_{version}",
-                        tags=["provision"],
-                    )
 
-                    self.router.add_api_route(
-                        f"{path}/schema",
-                        self._get_schema(resource, version),
-                        methods=["GET"],
-                        name=f"get {resource} {version}'s schema",
-                        tags=["get schema"],
-                    )
-
-                    self.router.add_api_route(
-                        f"{path}/schema/reload",
-                        self._reload_schema(resource, version),
-                        methods=["POST"],
-                        name=f"reload {resource} {version}'s schema",
-                        tags=["reload schema"],
-                    )
+                    self._register_resource_version_routes(resource, version)
 
 
-    def _get_schema(self, resource, version):
+    def _remove_resource_version_routes(self, resource, version):
+        path = f"/v1/{resource}/{version}"
+
+        print(self.app.routes)
+
+        self.app.router.routes = [
+            r for r in self.app.router.routes
+            if not (isinstance(r, APIRoute) and r.path == path)
+        ]
+
+        print(self.app.routes)
+        self.update_openapi_schema()
+
+
+    def _add_version(self, resource):
+
+        async def handler(request: dict):
+
+            version = request["version"]
+            schema = request["schema"]
+
+            self.schemas.schemas[resource][version] = schema
+            self.schemas.resolve_schemas(resource)
+
+            self._register_resource_version_routes(resource, version)
+
+            return JSONResponse(status_code=200, content=self.schemas.resolved_schemas[resource][version])
+
+
+        return handler
+
+    def _register_resource_version_routes(self, resource, version):
+
+        path = f"/{resource}/{version}"
+
+        self.router.add_api_route(
+            path,
+            self._make_version_handler(resource, version),
+            methods=["POST"],
+            name=f"provision_{resource}_{version}",
+            tags=["provision"],
+        )
+
+        self.router.add_api_route(
+            f"{path}",
+            self._get_version(resource, version),
+            methods=["GET"],
+            name=f"get {resource} {version}'s schema",
+            tags=["get version schema"],
+        )
+
+        self.router.add_api_route(
+            f"{path}",
+            self._modify_version(resource, version),
+            methods=["PATCH"],
+            name=f"reload {resource} {version}'s schema",
+            tags=["reload version"],
+        )
+
+        self.router.add_api_route(
+            f"{path}",
+            self._delete_version(resource, version),
+            methods=["DELETE"],
+            name=f"delete {resource} {version}'s schema",
+            tags=["delete version"],
+        )
+
+        self.app.include_router(self.router, prefix='/v1')
+        self.update_openapi_schema()
+
+    def _get_version(self, resource, version):
 
         schema = self.schemas.resolved_schemas[resource][version]
 
@@ -75,7 +136,17 @@ class ProvisionRouter:
 
         return handler
 
-    def _reload_schema(self, resource, version):
+    def _delete_version(self, resource, version):
+
+        def handler():
+
+            self._remove_resource_version_routes(resource, version)
+
+            return JSONResponse(content={"status": "ok"})
+
+        return handler
+
+    def _modify_version(self, resource, version):
 
         async def handler(request: dict):
             self.schemas.schemas[resource][version] = request
@@ -83,7 +154,9 @@ class ProvisionRouter:
 
             model_name = f"{resource}_{version}_Model"
             self.models[model_name] = schema_to_model(model_name, self.schemas.resolved_schemas[resource][version])
-            self._reload_endpoints(resource, version)
+
+            self._remove_resource_version_routes(resource, version)
+            self._register_resource_version_routes(resource, version)
 
             return JSONResponse(content={"message": f"Schema reloaded for {resource} {version}"})
 
@@ -152,28 +225,11 @@ class ProvisionRouter:
 
         return handler
 
-    def _reload_endpoints(self, resource, version):
-        path = f"/v1/{resource}/{version}"
-        schema_path = f"{path}/schema"
-
-        # remove old routes from the APP
-        self.app.router.routes = [
-            r for r in self.app.router.routes
-            if not (isinstance(r, APIRoute) and r.path in {path, schema_path})
-        ]
-
-        # re-add routes directly to the APP
-        self.app.router.add_api_route(
-            path,
-            self._make_version_handler(resource, version),
-            methods=["POST"],
-            name=f"provision_{resource}_{version}",
-            tags=["provision"],
-        )
-        self.app.router.add_api_route(
-            schema_path,
-            self._get_schema(resource, version),
-            methods=["GET"],
-            name=f"get_{resource}_{version}_schema",
-            tags=["get schema"],
+    def update_openapi_schema(self):
+        # Manually regenerate the OpenAPI schema
+        self.app.openapi_schema = get_openapi(
+            title="Your API",
+            version=basicSettings.OPENAPI_VERSION,
+            description="Dynamic API example",
+            routes=self.app.routes
         )
