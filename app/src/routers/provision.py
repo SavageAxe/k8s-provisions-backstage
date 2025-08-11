@@ -58,15 +58,13 @@ class ProvisionRouter:
 
     def _remove_resource_version_routes(self, resource, version):
         path = f"/v1/{resource}/{version}"
-
-        print(self.app.routes)
+        definition_path = f"{path}/definition"
 
         self.app.router.routes = [
             r for r in self.app.router.routes
-            if not (isinstance(r, APIRoute) and r.path == path)
+            if not (isinstance(r, APIRoute) and r.path in {path, definition_path})
         ]
 
-        print(self.app.routes)
         self.update_openapi_schema()
 
 
@@ -90,6 +88,7 @@ class ProvisionRouter:
     def _register_resource_version_routes(self, resource, version):
 
         path = f"/{resource}/{version}"
+        definition_path = f"{path}/definition"
 
         self.router.add_api_route(
             path,
@@ -100,7 +99,7 @@ class ProvisionRouter:
         )
 
         self.router.add_api_route(
-            f"{path}",
+            definition_path,
             self._get_version(resource, version),
             methods=["GET"],
             name=f"get {resource} {version}'s schema",
@@ -108,7 +107,7 @@ class ProvisionRouter:
         )
 
         self.router.add_api_route(
-            f"{path}",
+            definition_path,
             self._modify_version(resource, version),
             methods=["PATCH"],
             name=f"reload {resource} {version}'s schema",
@@ -116,7 +115,7 @@ class ProvisionRouter:
         )
 
         self.router.add_api_route(
-            f"{path}",
+            definition_path,
             self._delete_version(resource, version),
             methods=["DELETE"],
             name=f"delete {resource} {version}'s schema",
