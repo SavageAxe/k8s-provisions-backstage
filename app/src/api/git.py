@@ -60,6 +60,14 @@ class GitAPI:
         decoded_content = base64.b64decode(content).decode('utf-8')
         return decoded_content
 
+    # async def delete_file(self, path: str, commit_message: str):
+    #     try:
+    #         response = await self.api.delete(path)
+    #         handle_response(response)
+    #
+    #     except httpx.RequestError as e:
+    #         raise GitError(status_code=500, detail=f"Git request failed: {e}")
+
     async def modify_file_content(self, path, commit_message, content):
 
         try:

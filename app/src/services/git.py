@@ -1,3 +1,5 @@
+from click import command
+
 from app.src.api.git import GitAPI
 
 
@@ -11,3 +13,13 @@ class Git:
         commit_message = f"Modify {name} {resource}'s values file on {region=} on {namespace=}"
         await self.api.modify_file_content(path, commit_message ,values)
 
+
+    async def add_values(self, region, namespace, name, resource, values):
+        path = f'/{region}/{namespace}/{name}.yaml'
+        commit_message = f"Add {name} {resource}'s values file on {region=} on {namespace=}"
+        await self.api.create_new_file(path, commit_message ,values)
+
+    # async def delete_values(self, region, namespace, name, resource):
+    #     path = f'/{region}/{namespace}/{name}.yaml'
+    #     commit_message = f"Delete {name} {resource}'s values file on {region=} on {namespace=}"
+    #     await self.api.
