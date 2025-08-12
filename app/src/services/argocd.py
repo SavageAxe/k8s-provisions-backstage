@@ -1,9 +1,10 @@
-import httpx
-from fastapi import HTTPException
 from app.src.api.argocd import ArgoCDAPI
 from loguru import logger
 import json
 from time import sleep
+
+from app.src.errors.external_service import ExternalServiceError
+
 
 def build_app_name(region, namespace, name, resource) -> str:
     return f"{region}-{namespace}-{resource}-{name}"
@@ -22,18 +23,11 @@ class ArgoCD:
                 await self.api.get_app(app_name)
                 return None
 
-            except HTTPException as e:
-
+            except ExternalServiceError as e:
                 if e.status_code != 403:
                     raise e
-
-                else:
-                    sleep(1)
-                    timeout += 1
-
-            except httpx.RequestError as e:
-                logger.error(f"Request failed: {e}")
-                raise e
+                sleep(1)
+                timeout += 1
 
         raise Exception(f"Timed out waiting for {app_name}")
 
@@ -41,26 +35,15 @@ class ArgoCD:
     async def sync(self, region, namespace, name, resource):
 
         logger.info(f"Triggered ArgoCD sync for {name}'s {resource} at region: {region} in namespace: {namespace}")
-
         app_name = build_app_name(region, namespace, name, resource)
 
-        try:
-            await self.wait_for_app_creation(app_name)
-
-        except Exception as e:
-            logger.error(f"{app_name} don't exist")
-            raise e
+        await self.wait_for_app_creation(app_name)
 
         try:
             await self.api.sync_app(app_name)
 
-        except httpx.RequestError as e:
-            logger.error(f"Request failed: {e}")
-            raise e
-
-        except HTTPException as e:
-            logger.error(f"Failed to sync {name}'s {resource} at region: {region} in namespace: {namespace}"
-                         f"unexpected response from ArgoCD API: response code: {e.status_code}, detail: {e.detail}")
+        except ExternalServiceError as e:
+            logger.error(f"Failed to sync {app_name}")
             raise e
 
 
@@ -72,11 +55,11 @@ class ArgoCD:
 
         try:
             response = await self.api.get_app(app_name)
+            response = json.loads(response.body)
 
-        except Exception as e:
+        except ExternalServiceError as e:
+            logger.error(f"Failed to get app status for {app_name}")
             raise e
-
-        response = json.loads(response.body)
 
         return response["status"]["sync"]
 

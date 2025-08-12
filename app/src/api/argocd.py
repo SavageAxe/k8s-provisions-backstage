@@ -1,20 +1,28 @@
 import httpx
 from fastapi.responses import JSONResponse
 from app.general.database import BaseAPI
-from fastapi import HTTPException
+from loguru import logger
+from ..errors.external_service import ExternalServiceError
+
+class ArgoCDError(ExternalServiceError):
+    def __init__(self, status_code, detail, *args, **kwargs):
+        # Always set service_name to "ArgoCD"
+        self.service_name = "ArgoCD"
+        super().__init__(service_name="ArgoCD", status_code=status_code, detail=detail, *args, **kwargs)
+
 
 def handle_response(response: httpx.Response):
 
     if response.status_code == 307:
-        raise HTTPException(status_code=502, detail="ArgoCD endpoint is redirecting."
+        raise ArgoCDError(status_code=response.status_code, detail="ArgoCD endpoint is redirecting."
                                                     f"ArgoCD message: {response.text}")
 
     if response.status_code == 403:
-        raise HTTPException(status_code=502, detail="Dont have permission to access this application, or this application dosen't exist"
+        raise ArgoCDError(status_code=response.status_code, detail="Don't have permission to access this resource, or this resource dosen't exist"
                                                     f"ArgoCD message: {response.text}")
 
     if response.status_code != httpx.codes.OK:
-        raise HTTPException(status_code=502, detail=f"ArgoCD status code: {response.status_code}"
+        raise ArgoCDError(status_code=response.status_code, detail=f"ArgoCD status code: {response.status_code}."
                                                     f"ArgoCD message: {response.text}")
 
 
@@ -29,11 +37,10 @@ class ArgoCDAPI:
 
         try:
             response = await self.api.post(endpoint=uri, data={})
+            handle_response(response)
 
         except httpx.RequestError as e:
-            raise e
-
-        handle_response(response)
+            raise ArgoCDError(status_code=500, detail=f"Request error: {str(e)}")
 
 
     async def get_app(self, app_name):
@@ -42,11 +49,11 @@ class ArgoCDAPI:
 
         try:
             response = await self.api.get(endpoint=uri)
+            handle_response(response)
 
         except httpx.RequestError as e:
-            raise e
+            raise ArgoCDError(status_code=500, detail=f"Request error: {str(e)}")
 
-        handle_response(response)
 
         return JSONResponse(status_code=response.status_code,
                         content=response.json(),
