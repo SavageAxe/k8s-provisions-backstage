@@ -192,6 +192,7 @@ class ProvisionRouter:
         if not model_name in self.models:
             self.models[model_name] = schema_to_model(f"{resource}_{version}_Model", schema)
         model = self.models[model_name]
+
         async def handler(payload: model):
             payload = payload.dict()
 
