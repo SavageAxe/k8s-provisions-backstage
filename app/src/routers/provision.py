@@ -168,11 +168,7 @@ class ProvisionRouter:
 
             region, namespace, name = params.region, params.namespace, params.name
 
-            try:
-                sync_status = await self.argocd.get_app_status(region, namespace, name, resource)
-
-            except Exception as e:
-                raise e
+            sync_status = await self.argocd.get_app_status(region, namespace, name, resource)
 
             return JSONResponse({
                 "status": sync_status["status"],
@@ -200,26 +196,19 @@ class ProvisionRouter:
             resource_config = resources_config.get(resource, {})
             repo_url = resource_config['VALUES_REPO_URL']
             private_key_path = resource_config['VALUES_REPO_PRIVATE_KEY']
+
             if not repo_url or not private_key_path:
-                raise HTTPException(status_code=500, detail="Missing Git repo config for resource")
+                raise RuntimeError(f"no repo url or private key. For {resource}.")
 
             # Write YAML to Git
-            try:
-                namespace = payload.pop('namespace')
-                app_name = payload.pop('applicationName')
-                region = payload.pop('region')
-                yaml_data = payload
-                self.git_writer.write_and_commit(region, namespace, app_name, yaml_data, repo_url, private_key_path)
-
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"GitOps error: {e}")
+            namespace = payload.pop('namespace')
+            app_name = payload.pop('applicationName')
+            region = payload.pop('region')
+            yaml_data = payload
+            self.git_writer.write_and_commit(region, namespace, app_name, yaml_data, repo_url, private_key_path)
 
             # Trigger ArgoCD sync
-            try:
-                await self.argocd.sync(region, namespace, app_name, resource)
-
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"ArgoCD sync error: {e}")
+            await self.argocd.sync(region, namespace, app_name, resource)
 
             return JSONResponse(status_code=201, content={"message": f"Successfully provisioned {resource} for app: {app_name} at Region: {region}, in Namespace: {namespace}"})
 
