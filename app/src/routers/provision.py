@@ -1,10 +1,10 @@
 import json
 
+import yaml
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 from starlette.responses import JSONResponse
-
 from app.src.schemas.loader import SchemaLoader
 from ..utils import config, resources_config
 from ..schemas import schema_to_model
@@ -23,16 +23,16 @@ class ProvisionRouter:
         self.config = config.get_instance()
         self.git_writer = GitValuesWriter(logger)
         self.argocd = ArgoCD(config.ARGOCD_URL, config.ARGOCD_TOKEN, config.APPLICATION_SET_TIMEOUT)
-        self.schemas = SchemaLoader()
+        self.git = None
+        self.schema_manager = SchemaLoader()
         self.models = {}
-        self.schemas.load_all_schemas()
+        self.schema_manager.load_all_schemas()
         self._register_dynamic_routes()
 
 
     def _register_dynamic_routes(self):
 
-        for resource, versions in self.schemas.resolved_schemas.items():
-
+        for resource, versions in self.schema_manager.resolved_schemas.items():
 
             self.router.add_api_route(
                 f"/{resource}",
@@ -75,12 +75,12 @@ class ProvisionRouter:
             version = request["version"]
             schema = request["schema"]
 
-            self.schemas.schemas[resource][version] = schema
-            self.schemas.resolve_schemas(resource)
+            self.schema_manager.schemas[resource][version] = schema
+            self.schema_manager.resolve_schemas(resource)
 
             self._register_resource_version_routes(resource, version)
 
-            return JSONResponse(status_code=200, content=self.schemas.resolved_schemas[resource][version])
+            return JSONResponse(status_code=200, content=self.schema_manager.resolved_schemas[resource][version])
 
 
         return handler
@@ -127,7 +127,7 @@ class ProvisionRouter:
 
     def _get_version(self, resource, version):
 
-        schema = self.schemas.resolved_schemas[resource][version]
+        schema = self.schema_manager.resolved_schemas[resource][version]
 
         def handler():
 
@@ -148,11 +148,11 @@ class ProvisionRouter:
     def _modify_version(self, resource, version):
 
         async def handler(request: dict):
-            self.schemas.schemas[resource][version] = request
-            self.schemas.resolve_schemas(resource)
+            self.schema_manager.schemas[resource][version] = request
+            self.schema_manager.resolve_schemas(resource)
 
             model_name = f"{resource}_{version}_Model"
-            self.models[model_name] = schema_to_model(model_name, self.schemas.resolved_schemas[resource][version])
+            self.models[model_name] = schema_to_model(model_name, self.schema_manager.resolved_schemas[resource][version])
 
             self._remove_resource_version_routes(resource, version)
             self._register_resource_version_routes(resource, version)
@@ -180,7 +180,7 @@ class ProvisionRouter:
 
     def _make_version_handler(self, resource, version):
 
-        schema = self.schemas.resolved_schemas.get(resource, {}).get(version)
+        schema = self.schema_manager.resolved_schemas.get(resource, {}).get(version)
         if not schema:
             raise HTTPException(status_code=404, detail=f"Schema for {resource} version {version} not found")
 
@@ -204,8 +204,11 @@ class ProvisionRouter:
             namespace = payload.pop('namespace')
             app_name = payload.pop('applicationName')
             region = payload.pop('region')
-            yaml_data = payload
-            self.git_writer.write_and_commit(region, namespace, app_name, yaml_data, repo_url, private_key_path)
+            yaml_data = yaml.dump(payload, default_flow_style=False)
+
+
+
+            # self.git_writer.write_and_commit(region, namespace, app_name, yaml_data, repo_url, private_key_path)
 
             # Trigger ArgoCD sync
             await self.argocd.sync(region, namespace, app_name, resource)

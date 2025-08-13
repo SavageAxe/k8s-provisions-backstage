@@ -16,17 +16,27 @@ class GitError(ExternalServiceError):
 
 def handle_response(response: httpx.Response) -> JSONResponse:
 
+    message = response.json().get('message')
+
     if response.status_code == 401:
         raise GitError(status_code=response.status_code, detail="Git token is invalid or revoked."
-                                                    f"Git message: {response.text}")
+                                                    f"Git message: {message}")
 
     if response.status_code == 404:
         raise GitError(status_code=404, detail="Git path (repo or file) not found."
-                       f"Git message: {response.text}")
+                       f"Git message: {message}")
+
+    if response.status_code == 422:
+        if response.json().get('message') == 'Invalid Request.\\n\\n\\"sha\\" wasn\'t supplied.':
+            raise GitError(status_code=422, detail="Git path (repo or file) already exists.")
+        raise GitError(status_code=422, detail="Invalid request."
+                       f"Git message: {message}")
 
     if response.status_code != httpx.codes.OK:
         raise GitError(status_code=response.status_code, detail=f"Git status code: {response.status_code}."
-                                                    f"Git message: {response.text}")
+                                                    f"Git message: {message}")
+
+
 
 
 class GitAPI:
