@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 from starlette.responses import JSONResponse
-from app.src.schemas.new_loader import SchemaLoader
+from app.src.schemas.loader import SchemaLoader
 from ..utils import config, resources_config
 from ..schemas import schema_to_model
 from app.src.gitops.values_writer import GitValuesWriter

@@ -24,14 +24,14 @@ class SchemaResolver:
         self.schemas = schemas
         self.resolved_schemas: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
-    def resolve_refs(self, version: str, schema: dict, schema_store: dict, resource: str) -> dict:
+    def resolve_refs(self, version: str, schema: dict, schema_store: dict) -> dict:
         """
         Recursively resolve all $ref in a schema using jsonschema.
         If you have external schemas, pass them via schema_store.
         """
         if not isinstance(schema, dict):
             raise TypeError(f"Expected schema to be dict, got {type(schema)}: {schema}")
-        resolver = RefResolver.from_schema(schema, store=schema_store[resource] or {})
+        resolver = RefResolver.from_schema(schema, store=schema_store or {})
 
         def _resolve(node):
 
@@ -39,11 +39,11 @@ class SchemaResolver:
                 if "$ref" in node:
 
                     ref = node["$ref"]
-                    if ref in self.resolved_schemas.get(resource, {}):
-                        return self.resolved_schemas[resource][ref]
+                    if ref in self.resolved_schemas:
+                        return self.resolved_schemas[ref]
                     with resolver.resolving(ref) as resolved:
                         resolved_schema = _resolve(resolved)
-                        self.resolved_schemas.setdefault(resource, {})[ref] = resolved_schema
+                        self.resolved_schemas[ref] = resolved_schema
                         return resolved_schema
 
                 if "allOf" in node:
@@ -69,5 +69,5 @@ class SchemaResolver:
 
             return node
 
-        self.resolved_schemas.setdefault(resource, {})[version] = _resolve(schema)
-        return self.resolved_schemas[resource][version]
+        self.resolved_schemas[version] = _resolve(schema)
+        return self.resolved_schemas[version]
