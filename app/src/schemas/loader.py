@@ -31,12 +31,12 @@ class SchemaLoader:
             if key.endswith("_SCHEMAS_REPO_URL") and value:
                 resource = key[: -len("_SCHEMAS_REPO_URL")].lower()
                 self._load_resource_schemas(resource)
-                resolver = SchemaResolver(self.schemas[resource])
-                self.resolve_schemas(resource, resolver)
+                self.resolve_schemas(resource)
         return self.resolved_schemas
 
-    def resolve_schemas(self, resource, resolver: SchemaResolver):
+    def resolve_schemas(self, resource):
         schema_store = self.schemas[resource]
+        resolver = SchemaResolver(schema_store)
         for version, schema in schema_store.items():
             self.resolved_schemas.setdefault(resource, {})[version] = resolver.resolve_refs(version, schema, schema_store)
 
