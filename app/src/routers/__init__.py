@@ -1,4 +1,4 @@
-from .provision import ProvisionRouter
+from .generator import RouterGenerator
 
-def get_provision_router(app):
-    return ProvisionRouter(app).router
+def generate_router(app):
+    return RouterGenerator(app).router
