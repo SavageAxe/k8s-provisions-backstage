@@ -7,8 +7,6 @@ import subprocess
 from typing import Dict, Any
 
 from loguru import logger
-from app.src.utils.config import Config
-from ..utils import resources_config
 from .resolver import SchemaResolver
 
 
@@ -21,42 +19,35 @@ def is_version(string: str) -> bool:
 
 
 class SchemaLoader:
-    def __init__(self):
-        self.config = Config.get_instance()
+    def __init__(self, repo_url, resource, private_key_path):
+        self.repo_url = repo_url
+        self.private_key_path = private_key_path
+        self.resource = resource
         self.schemas: Dict[str, Dict[str, Dict[str, Any]]] = {}   # {resource: {version: schema_dict}}
         self.resolved_schemas: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
     def load_all_schemas(self):
-        for key, value in os.environ.items():
-            if key.endswith("_SCHEMAS_REPO_URL") and value:
-                resource = key[: -len("_SCHEMAS_REPO_URL")].lower()
-                self._load_resource_schemas(resource)
-                self.resolve_schemas(resource)
+        self._load_resource_schemas(self.resource)
+        self.resolve_schemas()
         return self.resolved_schemas
 
-    def resolve_schemas(self, resource):
-        schema_store = self.schemas[resource]
+    def resolve_schemas(self):
+        schema_store = self.schemas
         resolver = SchemaResolver(schema_store)
         for version, schema in schema_store.items():
-            self.resolved_schemas.setdefault(resource, {})[version] = resolver.resolve_refs(version, schema, schema_store)
+            self.resolved_schemas[version] = resolver.resolve_refs(version, schema, schema_store)
 
     def _load_resource_schemas(self, resource: str):
-        config = resources_config.get(resource, {})
-        repo_url = config.get("SCHEMAS_REPO_URL")
-        private_key_path = config.get("SCHEMAS_REPO_PRIVATE_KEY")
-
-        if not repo_url or not private_key_path:
-            logger.warning(f"Missing schema repo config for {resource}")
-            return
 
         temp_dir = tempfile.mkdtemp(prefix=f"{resource}_schemas_")
+
         try:
-            git_ssh_cmd = f"ssh -i {private_key_path} -o StrictHostKeyChecking=no"
+            git_ssh_cmd = f"ssh -i {self.private_key_path} -o StrictHostKeyChecking=no"
             env = os.environ.copy()
             env["GIT_SSH_COMMAND"] = git_ssh_cmd
 
             subprocess.run(
-                ["git", "clone", "--verbose", "--", repo_url, temp_dir],
+                ["git", "clone", "--verbose", "--", self.repo_url, temp_dir],
                 check=True,
                 env=env,
                 text=True,
@@ -79,10 +70,10 @@ class SchemaLoader:
 
                 if is_version(fname):
                     version = fname.split("-")[1].rstrip(".json")
-                    self.schemas.setdefault(resource, {})[version] = schema
+                    self.schemas[version] = schema
                     logger.info(f"Loaded schema for {resource} version {version}")
                 else:
-                    self.schemas.setdefault(resource, {})[fname] = schema
+                    self.schemas[fname] = schema
                     logger.info(f"Loaded {fname} for {resource}")
 
         except subprocess.CalledProcessError as e:
@@ -92,5 +83,5 @@ class SchemaLoader:
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def get_schema(self, resource: str, version: str):
-        return self.schemas.get(resource, {}).get(version)
+    def get_schema(self, version: str):
+        return self.schemas.get(version)

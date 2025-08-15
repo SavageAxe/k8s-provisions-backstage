@@ -13,17 +13,19 @@ class ArgoCDError(ExternalServiceError):
 
 def handle_response(response: httpx.Response):
 
+    message = response.json().get('message')
+
     if response.status_code == 307:
-        raise ArgoCDError(status_code=response.status_code, detail="ArgoCD endpoint is redirecting."
-                                                    f"ArgoCD message: {response.text}")
+        raise ArgoCDError(status_code=response.status_code, detail="ArgoCD endpoint is redirecting. "
+                                                    f"ArgoCD message: {message}")
 
     if response.status_code == 403:
-        raise ArgoCDError(status_code=response.status_code, detail="Don't have permission to access this resource, or this resource dosen't exist"
-                                                    f"ArgoCD message: {response.text}")
+        raise ArgoCDError(status_code=response.status_code, detail="Don't have permission to access this resource, or this resource dosen't exist. "
+                                                    f"ArgoCD message: {message}")
 
     if not response.is_success:
-        raise ArgoCDError(status_code=response.status_code, detail=f"ArgoCD status code: {response.status_code}."
-                                                    f"ArgoCD message: {response.text}")
+        raise ArgoCDError(status_code=response.status_code, detail=f"ArgoCD status code: {response.status_code}. "
+                                                    f"ArgoCD message: {message}")
 
 
 class ArgoCDAPI:
