@@ -1,5 +1,5 @@
 from pydantic import BaseModel, create_model, Field, HttpUrl
-from typing import Any, Dict, List, Union, Optional, Literal, get_args
+from typing import Any, Dict, List, Optional, Literal
 
 def schema_to_model(
     name: str,

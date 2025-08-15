@@ -27,12 +27,13 @@ def handle_response(response: httpx.Response) -> JSONResponse:
                        f"Git message: {message}")
 
     if response.status_code == 422:
-        if response.json().get('message') == 'Invalid Request.\\n\\n\\"sha\\" wasn\'t supplied.':
+        if "sha" in response.json().get('message'):
             raise GitError(status_code=422, detail="Git path (repo or file) already exists.")
         raise GitError(status_code=422, detail="Invalid request."
                        f"Git message: {message}")
 
-    if response.status_code != httpx.codes.OK:
+
+    if not response.is_success:
         raise GitError(status_code=response.status_code, detail=f"Git status code: {response.status_code}."
                                                     f"Git message: {message}")
 

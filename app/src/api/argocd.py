@@ -21,7 +21,7 @@ def handle_response(response: httpx.Response):
         raise ArgoCDError(status_code=response.status_code, detail="Don't have permission to access this resource, or this resource dosen't exist"
                                                     f"ArgoCD message: {response.text}")
 
-    if response.status_code != httpx.codes.OK:
+    if not response.is_success:
         raise ArgoCDError(status_code=response.status_code, detail=f"ArgoCD status code: {response.status_code}."
                                                     f"ArgoCD message: {response.text}")
 
