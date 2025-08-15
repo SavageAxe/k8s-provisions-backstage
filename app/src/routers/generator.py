@@ -1,14 +1,10 @@
 import yaml
-from fastapi import APIRouter, HTTPException, Depends, Query, FastAPI
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 from starlette.responses import JSONResponse
-from app.src.schemas.loader import SchemaLoader
-from ..utils import config, resources_config
 from ..schemas import schema_to_model
-from ..services.git import Git
 import re
-from app.src.services.argocd import ArgoCD
 from app.src.models.resource_metadata import ResourceMetadata
 from ...general.utils import basicSettings
 
@@ -85,7 +81,7 @@ class RouterGenerator:
 
         self.router.add_api_route(
             path,
-            self._make_version_handler(version, self.git),
+            self._make_version_handler(version),
             methods=["POST"],
             name=f"provision_{self.resource}_{version}",
             tags=["provision"],
@@ -169,7 +165,7 @@ class RouterGenerator:
         return handler
 
 
-    def _make_version_handler(self, version, git):
+    def _make_version_handler(self, version):
 
         schema = self.schema_manager.resolved_schemas.get(version)
         if not schema:
@@ -189,7 +185,7 @@ class RouterGenerator:
             region = data.pop("region")
             yaml_data = yaml.safe_dump(data, sort_keys=False)
 
-            await git.add_values(region, namespace, app_name, self.resource, yaml_data)
+            await self.git.add_values(region, namespace, app_name, self.resource, yaml_data)
 
             # Trigger ArgoCD sync
             await self.argocd.sync(region, namespace, app_name, self.resource)
