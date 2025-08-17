@@ -27,7 +27,7 @@ class RouterGenerator:
         for version, schema in self.schema_manager.resolved_schemas.items():
 
             self.router.add_api_route(
-                f"/{self.resource}",
+                "/",
                 self._add_version(),
                 methods=["POST"],
                 name=f"add version to {self.resource}",
@@ -35,7 +35,7 @@ class RouterGenerator:
             )
 
             self.router.add_api_route(
-                f"/{self.resource}/status",
+                "/status",
                 self._make_resource_handler(),
                 methods=["GET"],
                 name=f"get apps statuses for {self.resource}",
@@ -76,7 +76,7 @@ class RouterGenerator:
 
     def _register_resource_version_routes(self, version):
 
-        path = f"/{self.resource}/{version}"
+        path = f"/{version}"
         definition_path = f"{path}/definition"
 
         self.router.add_api_route(

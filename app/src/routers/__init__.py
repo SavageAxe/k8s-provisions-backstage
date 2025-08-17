@@ -13,6 +13,6 @@ def generate_router(app):
         git = Git(config["VALUES_REPO_URL"], config["VALUES_ACCESS_TOKEN"])
         argocd = ArgoCD(argocd_url, argocd_token, application_set_timeout)
         router_generator = RouterGenerator(app, resource, git, schema_manager, argocd)
-        app.include_router(router_generator.router, prefix="/v1")
+        app.include_router(router_generator.router, prefix=f"/v1/{resource}")
 
     return app
