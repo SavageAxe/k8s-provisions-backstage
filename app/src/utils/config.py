@@ -39,4 +39,5 @@ class Config(BasicSettings):
             'SCHEMAS_REPO_URL': os.getenv(f'{resource.upper()}_SCHEMAS_REPO_URL'),
             'SCHEMAS_REPO_PRIVATE_KEY': os.getenv(f'{resource.upper()}_SCHEMAS_REPO_PRIVATE_KEY'),
             'VALUES_ACCESS_TOKEN': os.getenv(f'{resource.upper()}_VALUES_ACCESS_TOKEN'),
+            'SCHEMAS_ACCESS_TOKEN': os.getenv(f'{resource.upper()}_SCHEMAS_ACCESS_TOKEN'),
         }

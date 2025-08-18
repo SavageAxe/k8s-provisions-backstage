@@ -18,11 +18,11 @@ class RouterGenerator:
         self.git = git
         self.schema_manager = schema_manager
         self.models = {}
-        self.schema_manager.load_all_schemas()
-        self._generate_routes()
+        # self.schema_manager.load_all_schemas()
+        # self._generate_routes()
 
 
-    def _generate_routes(self):
+    async def generate_routes(self):
 
         for version, schema in self.schema_manager.resolved_schemas.items():
 
@@ -111,7 +111,7 @@ class RouterGenerator:
             tags=["delete version"],
         )
 
-        self.app.include_router(self.router, prefix='/v1')
+        self.app.include_router(self.router, prefix=f'/v1/{self.resource}')
         self.update_openapi_schema()
 
     def _get_version(self, version):

@@ -1,13 +1,12 @@
-from logging import DEBUG
+import asyncio
 
 from app import create_app
 from app.general import basicSettings, logger_config
 
-
-app = create_app()
-
 if __name__ == "__main__":
     import uvicorn
+
+    app = asyncio.run(create_app())
 
     if basicSettings.DEBUG:
 

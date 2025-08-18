@@ -14,7 +14,10 @@ class GitError(ExternalServiceError):
         super().__init__(service_name="Git", status_code=status_code, detail=detail, *args, **kwargs)
 
 
-def handle_response(response: httpx.Response) -> JSONResponse:
+def handle_response(response: httpx.Response):
+
+    if not 'message' in response.json():
+        return
 
     message = response.json().get('message')
 
@@ -49,7 +52,7 @@ class GitAPI:
 
     async def get_file(self, path: str):
         try:
-            response = await self.api.get(path)
+            response = await self.api.get(f"/contents/{path.lstrip()}")
             handle_response(response)
 
         except httpx.RequestError as e:
@@ -68,7 +71,7 @@ class GitAPI:
         }
 
         try:
-            response = await self.api.delete(path, json=payload)
+            response = await self.api.delete(f"/contents/{path.lstrip()}", json=payload)
             handle_response(response)
 
         except httpx.RequestError as e:
@@ -94,7 +97,7 @@ class GitAPI:
         }
 
         try:
-            response = await self.api.put(path, json=payload)
+            response = await self.api.put(f"/contents/{path.lstrip()}", json=payload)
             handle_response(response)
 
         except httpx.RequestError as e:
@@ -103,17 +106,15 @@ class GitAPI:
 
     async def list_dir(self, path: str) -> list[str]:
         try:
-            response = await self.api.get(path)
+            response = await self.api.get(f"/contents/{path.lstrip()}")
             handle_response(response)
 
         except httpx.RequestError as e:
             raise GitError(status_code=500, detail=f"Git request failed: {e}")
 
         files = []
-        for file in response.json():
-            files.append((file["name"], file["path"]))
 
-        return files
+        return response.json()
 
 
     async def create_new_file(self, path: str, commit_message: str,content: str):
@@ -126,8 +127,33 @@ class GitAPI:
         }
 
         try:
-            response = await self.api.put(path, json=payload)
+            response = await self.api.put(f"/contents/{path.lstrip()}", json=payload)
             handle_response(response)
 
         except httpx.RequestError as e:
             raise GitError(status_code=500, detail=f"Git request failed: {e}")
+
+
+    async def commits_per_path(self, path, since, until):
+
+        params = {"path": path, "since": since, "until": until}
+
+        try:
+            response = await self.api.get("/commits", params=params)
+            handle_response(response)
+
+        except httpx.RequestError as e:
+            raise GitError(status_code=500, detail=f"Git request failed: {e}")
+
+        return response.json()
+
+    async def get_commit(self, sha: str):
+
+        try:
+            response = await self.api.get(f"/commits/{sha}")
+            handle_response(response)
+
+        except httpx.RequestError as e:
+            raise GitError(status_code=500, detail=f"Git request failed: {e}")
+
+        return response.json()

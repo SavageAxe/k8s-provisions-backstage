@@ -20,8 +20,7 @@ class SchemaResolver:
     Expects schemas shaped like: {resource: {version: <schema dict>, ...}, ...}
     """
 
-    def __init__(self, schemas: Dict[str, Dict[str, Dict[str, Any]]]) -> None:
-        self.schemas = schemas
+    def __init__(self) -> None:
         self.resolved_schemas: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
     def resolve_refs(self, version: str, schema: dict, schema_store: dict) -> dict:

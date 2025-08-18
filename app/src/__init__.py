@@ -4,7 +4,7 @@ from .middlewares.exception import add_exception_handlers
 
 async_background_tasks = []
 
-def update_app(app: FastAPI) -> FastAPI:
+async def update_app(app: FastAPI) -> FastAPI:
     add_exception_handlers(app)
-    app = generate_router(app)
+    app = await generate_router(app)
     return app

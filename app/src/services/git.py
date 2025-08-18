@@ -1,3 +1,4 @@
+import asyncio
 import base64
 
 from app.src.api.git import GitAPI, GitError
@@ -26,8 +27,35 @@ class Git:
         await self.api.delete_file(path, commit_message)
 
 
-    async def compare_values(self, region, namespace, name, values):
-        path = f'/{region}/{namespace}/{name}.yaml'
-        enc_git_values = self.api.get_file(path)["content"]
-        git_values = base64.b64decode(enc_git_values).decode("utf-8")
-        return git_values == values
+    async def get_file_content(self, path):
+        resp = await self.api.get_file(path)
+        enc_git_file = resp["content"]
+        git_file = base64.b64decode(enc_git_file).decode("utf-8")
+        return git_file
+
+
+    async def get_changed_files(self, path, since, until):
+        commits = await self.api.commits_per_path(path, since, until)
+        if not commits:
+            return None
+
+        changed_files = []
+
+        for commit in commits:
+            sha = commit['sha']
+            commit = await self.api.get_commit(sha)
+            for file in commit['files']:
+                filename = file['filename']
+                if filename.startswith(path) and filename not in changed_files:
+                    changed_files.append(filename)
+
+        return changed_files
+
+    async def list_dir(self, path):
+        response = await self.api.list_dir(path)
+
+        files = []
+        for file in response:
+            files.append((file["name"], file["path"]))
+
+        return files
