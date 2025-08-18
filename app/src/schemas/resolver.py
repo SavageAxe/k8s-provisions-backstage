@@ -27,46 +27,57 @@ class SchemaResolver:
         """
         Recursively resolve all $ref in a schema using jsonschema.
         If you have external schemas, pass them via schema_store.
+        resolved_schemas structure:
+        {
+          "schema_name": {
+            "referred_in": [list of schemas where it was referenced],
+            "schema": resolved_schema_dict
+          }
+        }
         """
         if not isinstance(schema, dict):
             raise TypeError(f"Expected schema to be dict, got {type(schema)}: {schema}")
+
         resolver = RefResolver.from_schema(schema, store=schema_store or {})
 
-        def _resolve(node):
-
+        def _resolve(node, name):
             if isinstance(node, dict):
                 if "$ref" in node:
-
                     ref = node["$ref"]
-                    if ref in self.resolved_schemas:
-                        return self.resolved_schemas[ref]
+
+                    # ensure entry exists
+                    self.resolved_schemas.setdefault(ref, {"referred_in": [], "schema": None})
+                    self.resolved_schemas[ref]["referred_in"].append(name)
+
+                    if self.resolved_schemas[ref]["schema"] is not None:
+                        return self.resolved_schemas[ref]["schema"]
+
                     with resolver.resolving(ref) as resolved:
-                        resolved_schema = _resolve(resolved)
-                        self.resolved_schemas[ref] = resolved_schema
+                        resolved_schema = _resolve(resolved, ref)
+                        self.resolved_schemas[ref]["schema"] = resolved_schema
                         return resolved_schema
 
                 if "allOf" in node:
                     merged = {}
                     for subschema in node["allOf"]:
-
-                        resolved = _resolve(subschema)
+                        resolved = _resolve(subschema, name)
                         if "required" in resolved:
                             merged.setdefault("required", []).extend(resolved["required"])
-
                         if "properties" in resolved:
                             merged.setdefault("properties", {})
                             deep_merge_props(merged["properties"], resolved["properties"])
-
                         for k, v in resolved.items():
                             if k not in {"required", "properties"}:
                                 merged[k] = v
                     return merged
 
-                return {k: _resolve(v) for k, v in node.items()}
+                return {k: _resolve(v, name) for k, v in node.items()}
+
             elif isinstance(node, list):
-                return [_resolve(i) for i in node]
+                return [_resolve(i, name) for i in node]
 
             return node
 
-        self.resolved_schemas[version] = _resolve(schema)
+        self.resolved_schemas.setdefault(version, {"referred_in": [], "schema": None})
+        self.resolved_schemas[version]["schema"] = _resolve(schema, version)
         return self.resolved_schemas[version]

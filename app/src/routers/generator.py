@@ -18,8 +18,6 @@ class RouterGenerator:
         self.git = git
         self.schema_manager = schema_manager
         self.models = {}
-        # self.schema_manager.load_all_schemas()
-        # self._generate_routes()
 
 
     async def generate_routes(self):
@@ -70,7 +68,7 @@ class RouterGenerator:
 
             self._register_resource_version_routes(version)
 
-            return JSONResponse(status_code=200, content=self.schema_manager.resolved_schemas[version])
+            return JSONResponse(status_code=200, content=self.schema_manager.resolved_schemas[version]["schema"])
 
         return handler
 
@@ -117,7 +115,7 @@ class RouterGenerator:
     def _get_version(self, version):
 
         def handler():
-            return JSONResponse(content=self.schema_manager.resolved_schemas[version])
+            return JSONResponse(content=self.schema_manager.resolved_schemas[version]["schema"])
 
         return handler
 
@@ -139,7 +137,7 @@ class RouterGenerator:
             self.schema_manager.resolve_schemas()
 
             model_name = f"{self.resource}_{version}_Model"
-            self.models[model_name] = schema_to_model(model_name, self.schema_manager.resolved_schemas[version])
+            self.models[model_name] = schema_to_model(model_name, self.schema_manager.resolved_schemas[version]["schema"])
 
             self._remove_resource_version_routes(version)
             self._register_resource_version_routes(version)
@@ -167,7 +165,7 @@ class RouterGenerator:
 
     def _make_version_handler(self, version):
 
-        schema = self.schema_manager.resolved_schemas.get(version)
+        schema = self.schema_manager.resolved_schemas.get(version)["schema"]
         if not schema:
             raise HTTPException(status_code=404, detail=f"Schema for {self.resource} version {version} not found")
 
