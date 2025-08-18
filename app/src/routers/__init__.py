@@ -17,9 +17,11 @@ async def generate_router(app):
         schema_manager = SchemaLoader(resource, schemas_git)
         values_git = Git(config["VALUES_REPO_URL"], config["VALUES_ACCESS_TOKEN"])
         argocd = ArgoCD(argocd_url, argocd_token, application_set_timeout)
-        router_generator = RouterGenerator(app, resource, values_git, schema_manager, argocd)
-        await router_generator.schema_manager.load_all_schemas()
-        await router_generator.generate_routes()
-        app.include_router(router_generator.router, prefix=f"/v1/{resource}")
+        rg = RouterGenerator(app, resource, values_git, schema_manager, argocd)
+        await rg.schema_manager.load_all_schemas()
+        await rg.generate_routes()
+        app.include_router(rg.router, prefix=f"/v1/{resource}")
+
+        app.state.router_generators.append(rg)
 
     return app

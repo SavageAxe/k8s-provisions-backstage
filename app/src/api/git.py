@@ -112,8 +112,6 @@ class GitAPI:
         except httpx.RequestError as e:
             raise GitError(status_code=500, detail=f"Git request failed: {e}")
 
-        files = []
-
         return response.json()
 
 

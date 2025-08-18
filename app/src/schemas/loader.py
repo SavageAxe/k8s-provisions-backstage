@@ -1,10 +1,8 @@
 import asyncio
 import json
 import re
-from asyncio import sleep
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
-from ..services.git import Git
 from .resolver import SchemaResolver
 from loguru import logger
 
@@ -56,35 +54,55 @@ class SchemaLoader:
         return self.schemas.get(version)
 
 
-    async def sync_schemas(self, last_sync, now):
-        changed_files = await self.git.get_changed_files("/schemas", last_sync, now)
-        logger.info("Looking for changed files")
+    async def sync_schemas(self):
 
-        for schema_path in changed_files:
+        last_sync = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # last_sync="2025-08-18T00:00:00Z"
+        while True:
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            # now="2025-08-18T14:59:59Z"
+            changed_files = await self.git.get_changed_files("/schemas", last_sync, now)
 
-            current_schema = await self.git.get_file_content(schema_path)
-            schema_name = schema_path.split("/")[-1]
+            logger.info(f"Looking for changed schemas for {self.resource}")
 
-            logger.info(f"Reloads {schema_name} for {self.resource}")
+            for schema_path in changed_files:
 
-            if is_version(schema_name):
-                schema_name = schema_name.split("-")[1].rstrip(".json")
+                current_schema = await self.git.get_file_content(schema_path)
+                schema_name = schema_path.split("/")[-1]
 
-            self._remove_relevant_refs_resolved_schemas(schema_name)
-            self.schemas[schema_name] = current_schema
-            await self.resolve_schemas()
+                if is_version(schema_name):
+                    schema_name = schema_name.split("-")[1].rstrip(".json")
 
-            logger.info(f"{schema_name} for {self.resource} reloaded successfully!")
+                logger.info(f"Reloads {schema_name} for {self.resource}")
 
-        await asyncio.sleep("10")
+                self._remove_relevant_refs_resolved_schemas(schema_name)
+
+                try:
+                    self.schemas[schema_name] = json.loads(current_schema)
+
+                except Exception as e:
+                    logger.error(f"Failed to load schema {schema_path}: {e}")
+
+                await self.resolve_schemas()
+
+                logger.info(f"{schema_name} for {self.resource} reloaded successfully!")
+
+            last_sync = now
+            await asyncio.sleep(10)
 
 
 
     def _remove_relevant_refs_resolved_schemas(self, schema_name: str):
-        if self.resolved_schemas[schema_name]["referred_in"] is []:
-            del self.resolved_schemas[schema_name]["schema"]
+        referred_in = self.resolved_schemas[schema_name]["referred_in"]
+
+        if not referred_in:
+            logger.info(f"Remove {schema_name} for {self.resource}")
+            self.resolved_schemas[schema_name].pop("schema", None)
         else:
-            for schema in self.resolved_schemas[schema_name]["referred_in"]:
-                self.remove_relevant_refs(schema)
-                self.resolved_schemas[schema_name]["referred_in"].pop(schema)
-            del self.resolved_schemas[schema_name]["schema"]
+
+            for schema in list(referred_in):
+                self._remove_relevant_refs_resolved_schemas(schema)
+
+                referred_in.remove(schema)
+
+            self.resolved_schemas[schema_name].pop("schema", None)

@@ -37,7 +37,7 @@ class Git:
     async def get_changed_files(self, path, since, until):
         commits = await self.api.commits_per_path(path, since, until)
         if not commits:
-            return None
+            return []
 
         changed_files = []
 
@@ -46,7 +46,7 @@ class Git:
             commit = await self.api.get_commit(sha)
             for file in commit['files']:
                 filename = file['filename']
-                if filename.startswith(path) and filename not in changed_files:
+                if filename.startswith(path.lstrip("/")) and filename not in changed_files:
                     changed_files.append(filename)
 
         return changed_files
