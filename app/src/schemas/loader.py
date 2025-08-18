@@ -1,6 +1,8 @@
 import asyncio
 import json
 import re
+from asyncio import sleep
+from datetime import datetime
 from typing import Dict, Any
 from ..services.git import Git
 from .resolver import SchemaResolver
@@ -25,8 +27,7 @@ class SchemaLoader:
 
     async def load_all_schemas(self):
         await self._load_resource_schemas(self.resource)
-        resolved_schemas = await self.resolve_schemas()
-        return resolved_schemas
+        await self.resolve_schemas()
 
     async def resolve_schemas(self):
         schema_store = self.schemas
@@ -55,23 +56,35 @@ class SchemaLoader:
         return self.schemas.get(version)
 
 
-    async def sync_schemas(self):
-
-        changed_files = self.git.get_changed_files()
+    async def sync_schemas(self, last_sync, now):
+        changed_files = await self.git.get_changed_files("/schemas", last_sync, now)
+        logger.info("Looking for changed files")
 
         for schema_path in changed_files:
 
-            current_schema = self.git.get_file_content(schema_path)
+            current_schema = await self.git.get_file_content(schema_path)
+            schema_name = schema_path.split("/")[-1]
 
-            version = schema_path.split("/")[-1]
-            if is_version(version):
-                version = version.split("-")[1].rstrip(".json")
-                schema = self.schemas[version]
+            logger.info(f"Reloads {schema_name} for {self.resource}")
 
-            else:
-                schema = self.schemas[version]
+            if is_version(schema_name):
+                schema_name = schema_name.split("-")[1].rstrip(".json")
 
-            if not current_schema == schema:
+            self._remove_relevant_refs_resolved_schemas(schema_name)
+            self.schemas[schema_name] = current_schema
+            await self.resolve_schemas()
 
-                self.schemas[version] = current_schema
-                self.resolved_schemas[version] = self.resolver.resolve_refs(version, current_schema, self.schemas)
+            logger.info(f"{schema_name} for {self.resource} reloaded successfully!")
+
+        await asyncio.sleep("10")
+
+
+
+    def _remove_relevant_refs_resolved_schemas(self, schema_name: str):
+        if self.resolved_schemas[schema_name]["referred_in"] is []:
+            del self.resolved_schemas[schema_name]["schema"]
+        else:
+            for schema in self.resolved_schemas[schema_name]["referred_in"]:
+                self.remove_relevant_refs(schema)
+                self.resolved_schemas[schema_name]["referred_in"].pop(schema)
+            del self.resolved_schemas[schema_name]["schema"]
