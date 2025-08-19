@@ -13,21 +13,15 @@ class Git:
         last_commit = await self.api.get_last_commit()
         self.last_commit = last_commit["sha"]
 
-    async def modify_values(self, region, namespace, name, resource, values):
-        path = f'/{region}/{namespace}/{name}.yaml'
-        commit_message = f"Modify {name} {resource}'s values file on {region=} on {namespace=}"
-        await self.api.modify_file_content(path, commit_message ,values)
+    async def modify_file(self, path, commit_message, content):
+        await self.api.modify_file_content(path, commit_message ,content)
 
 
-    async def add_values(self, region, namespace, name, resource, values):
-        path = f'/{region}/{namespace}/{name}.yaml'
-        commit_message = f"Add {name} {resource}'s values file on {region=} on {namespace=}"
-        await self.api.create_new_file(path, commit_message ,values)
+    async def add_file(self, path, commit_message, content):
+        await self.api.create_new_file(path, commit_message ,content)
 
 
-    async def delete_values(self, region, namespace, name, resource):
-        path = f'/{region}/{namespace}/{name}.yaml'
-        commit_message = f"Delete {name} {resource}'s values file on {region=} on {namespace=}"
+    async def delete_file(self, path, commit_message):
         await self.api.delete_file(path, commit_message)
 
 

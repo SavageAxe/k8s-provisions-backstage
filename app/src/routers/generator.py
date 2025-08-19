@@ -130,8 +130,8 @@ class RouterGenerator:
             app_name = data.pop("applicationName")
             region = data.pop("region")
             yaml_data = yaml.safe_dump(data, sort_keys=False)
-
-            await self.git.add_values(region, namespace, app_name, self.resource, yaml_data)
+            path = f'/{region}/{namespace}/{app_name}.yaml'
+            await self.git.add_files(path, yaml_data)
 
             # Trigger ArgoCD sync
             await self.argocd.sync(region, namespace, app_name, self.resource)
