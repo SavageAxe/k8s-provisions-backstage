@@ -1,10 +1,11 @@
+import re
+from typing import Dict, Any, Set, List
+from loguru import logger
 import asyncio
 import json
-import re
 from datetime import datetime, timezone
-from typing import Dict, Any
+from ..utils.openapi import update_openapi_schema
 from .resolver import SchemaResolver
-from loguru import logger
 
 
 def is_version(string: str) -> bool:
@@ -15,12 +16,59 @@ def is_version(string: str) -> bool:
     )
 
 
+def _normalize_name(filename: str) -> str:
+    """schemas/base-schema.json -> base-schema.json, schema-0.1.0.json -> 0.1.0"""
+    name = filename.split("/")[-1]
+    if is_version(name):
+        return name.split("-")[1].rstrip(".json")
+    return name
+
+
+def _collect_refs(schema: dict) -> Set[str]:
+    """Collect file level $ref names, keep only file names"""
+    refs: Set[str] = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            if "$ref" in node:
+                part = node["$ref"].split("/")[-1]
+                if part.endswith(".json"):
+                    refs.add(part)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(schema)
+    return refs
+
+
+def _dependents_closure(resolved_sets: dict, root: str) -> Set[str]:
+    """All schemas that directly or transitively refer to root, including root"""
+    seen: Set[str] = set()
+    stack: List[str] = [root]
+    while stack:
+        cur = stack.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        entry = resolved_sets.get(cur)
+        if not entry:
+            continue
+        for parent in entry["referred_in"]:
+            if parent not in seen:
+                stack.append(parent)
+    return seen
+
+
 class SchemaLoader:
-    def __init__(self, resource, git):
+    def __init__(self, resource, git, app):
         self.git = git
         self.resource = resource
-        self.schemas: Dict[str, Dict[str, Dict[str, Any]]] = {}   # {resource: {version: schema_dict}}
-        self.resolved_schemas: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self.app = app
+        self.schemas: Dict[str, Dict[str, Any]] = {}          # version -> schema dict
+        self.resolved_schemas: Dict[str, Dict[str, Any]] = {} # name -> {referred_in, referred_to, schema}
         self.resolver = SchemaResolver()
 
     async def load_all_schemas(self):
@@ -28,81 +76,148 @@ class SchemaLoader:
         await self.resolve_schemas()
 
     async def resolve_schemas(self):
+        # rebuild resolver graph from scratch for consistency
+        self.resolver.resolved_schemas.clear()
         schema_store = self.schemas
         for version, schema in schema_store.items():
-            self.resolved_schemas[version] = self.resolver.resolve_refs(version, schema, schema_store)
+            self.resolver.resolve_refs(version, schema, schema_store)
+
+        # snapshot resolver internal sets to lists
+        self.resolved_schemas = {
+            name: {
+                "referred_in": list(entry["referred_in"]),
+                "referred_to": list(entry["referred_to"]),
+                "schema": entry["schema"],
+            }
+            for name, entry in self.resolver.resolved_schemas.items()
+        }
         return self.resolved_schemas
 
     async def _load_resource_schemas(self, resource: str):
-
         schemas = await self.git.list_dir("/schemas")
         for name, path in schemas:
             content = await self.git.get_file_content(path)
             schema = json.loads(content)
             if is_version(name):
-                name = name.split("-")[1].rstrip(".json")
-                self.schemas[name] = schema
+                version = name.split("-")[1].rstrip(".json")
+                self.schemas[version] = schema
             else:
                 self.schemas[name] = schema
-
             logger.info(f"Loaded schema for {resource} version {name}")
-
-
-
 
     def get_schema(self, version: str):
         return self.schemas.get(version)
 
+    async def _rebuild_impacted(self, impacted: Set[str]) -> None:
+        # resolve impacted, or simply snapshot if none provided
+        for ver in impacted:
+            schema = self.schemas.get(ver)
+            if schema is not None:
+                self.resolver.resolve_refs(ver, schema, self.schemas)
+
+        self.resolved_schemas = {
+            name: {
+                "referred_in": list(entry["referred_in"]),
+                "referred_to": list(entry["referred_to"]),
+                "schema": entry["schema"],
+            }
+            for name, entry in self.resolver.resolved_schemas.items()
+        }
+
+    async def _remove_schema(self, schema_name: str, changed_schemas: list) -> None:
+        entry = self.resolver.resolved_schemas.get(schema_name)
+        if not entry:
+            self.schemas.pop(schema_name, None)
+            return
+
+        dependents = set(entry["referred_in"])
+        missing = [
+            d for d in dependents
+            if not any(_normalize_name(cs["filename"]) == d and cs["status"] == "removed"
+                       for cs in changed_schemas)
+        ]
+        if missing:
+            logger.error(f"ERROR: Cannot remove {schema_name}, still referred in: {sorted(missing)}")
+            return
+
+        for ref in set(entry["referred_to"]):
+            peer = self.resolver.resolved_schemas.get(ref)
+            if peer:
+                peer["referred_in"].discard(schema_name)
+
+        for parent in set(entry["referred_in"]):
+            peer = self.resolver.resolved_schemas.get(parent)
+            if peer:
+                peer["referred_to"].discard(schema_name)
+
+        self.resolver.resolved_schemas.pop(schema_name, None)
+        self.schemas.pop(schema_name, None)
+
+        await self._rebuild_impacted(set())
+
+    async def _update_schema(self, schema_name: str, filename: str) -> None:
+        try:
+            raw = await self.git.get_file_content(filename)
+            self.schemas[schema_name] = json.loads(raw)
+        except Exception as e:
+            logger.error(f"Failed to update schema {schema_name}: {e}")
+            return
+
+        impacted = _dependents_closure(self.resolver.resolved_schemas, schema_name)
+        await self._rebuild_impacted(impacted)
+
+    async def _add_schema(self, schema_name: str, filename: str, changed_schemas: list) -> None:
+        try:
+            raw = await self.git.get_file_content(filename)
+            new_schema = json.loads(raw)
+
+        except Exception as e:
+            logger.error(f"Failed to add schema {schema_name}: {e}")
+            return
+
+        refs = _collect_refs(new_schema)
+        missing = [
+            r for r in refs
+            if _normalize_name(r) not in self.schemas
+            and not any(_normalize_name(cs["filename"]) == _normalize_name(r) and cs["status"] == "added"
+                        for cs in changed_schemas)
+        ]
+        if missing:
+            logger.error(f"ERROR: Cannot add {schema_name}, missing refs: {sorted(missing)}")
+            return
+
+        self.schemas[schema_name] = new_schema
+        impacted = _dependents_closure(self.resolver.resolved_schemas, schema_name)
+        await self._rebuild_impacted(impacted)
 
     async def sync_schemas(self):
-
         last_sync = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        # last_sync="2025-08-18T00:00:00Z"
+
         while True:
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            # now="2025-08-18T14:59:59Z"
-            changed_files = await self.git.get_changed_files("/schemas", last_sync, now)
-
+            changed_schemas = await self.git.get_changed_files("/schemas", last_sync, now) or []
             logger.info(f"Looking for changed schemas for {self.resource}")
 
-            for schema_path in changed_files:
+            for item in changed_schemas:
 
-                current_schema = await self.git.get_file_content(schema_path)
-                schema_name = schema_path.split("/")[-1]
+                filename = item["filename"]
+                logger.info(f"Processing {filename}")
+                status = item["status"]
+                schema_name = _normalize_name(filename)
 
-                if is_version(schema_name):
-                    schema_name = schema_name.split("-")[1].rstrip(".json")
+                if status == "removed":
+                    logger.info(f"Removing {schema_name}")
+                    await self._remove_schema(schema_name, changed_schemas)
 
-                logger.info(f"Reloads {schema_name} for {self.resource}")
+                elif status == "modified":
+                    logger.info(f"Modifying {schema_name}")
+                    await self._update_schema(schema_name, filename)
 
-                self._remove_relevant_refs_resolved_schemas(schema_name)
+                elif status == "added":
+                    logger.info(f"Adding {schema_name}")
+                    await self._add_schema(schema_name, filename, changed_schemas)
 
-                try:
-                    self.schemas[schema_name] = json.loads(current_schema)
-
-                except Exception as e:
-                    logger.error(f"Failed to load schema {schema_path}: {e}")
-
-                await self.resolve_schemas()
-
-                logger.info(f"{schema_name} for {self.resource} reloaded successfully!")
+                update_openapi_schema(self.app, f"{self.resource}'s API", f"An api for {self.resource} provisioning.")
 
             last_sync = now
             await asyncio.sleep(10)
-
-
-
-    def _remove_relevant_refs_resolved_schemas(self, schema_name: str):
-        referred_in = self.resolved_schemas[schema_name]["referred_in"]
-
-        if not referred_in:
-            logger.info(f"Remove {schema_name} for {self.resource}")
-            self.resolved_schemas[schema_name].pop("schema", None)
-        else:
-
-            for schema in list(referred_in):
-                self._remove_relevant_refs_resolved_schemas(schema)
-
-                referred_in.remove(schema)
-
-            self.resolved_schemas[schema_name].pop("schema", None)

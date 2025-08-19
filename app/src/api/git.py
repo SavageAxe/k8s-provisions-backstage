@@ -145,6 +145,29 @@ class GitAPI:
 
         return response.json()
 
+    async def compare_commits(self, base: str, head: str):
+        path = f"/compare/{base}...{head}"
+
+        try:
+            response = await self.api.get(path)
+            handle_response(response)
+
+        except httpx.RequestError as e:
+            raise GitError(status_code=500, detail=f"Git request failed: {e}")
+
+        return response.json()
+
+    async def get_last_commit(self):
+        try:
+            response = await self.api.get("/commits/main")
+            handle_response(response)
+
+        except httpx.RequestError as e:
+            raise GitError(status_code=500, detail=f"Git request failed: {e}")
+
+        return response.json()
+
+
     async def get_commit(self, sha: str):
 
         try:

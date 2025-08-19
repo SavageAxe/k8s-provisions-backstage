@@ -23,31 +23,32 @@ class SchemaResolver:
     def __init__(self) -> None:
         self.resolved_schemas: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
+    from jsonschema import RefResolver
+
     def resolve_refs(self, version: str, schema: dict, schema_store: dict) -> dict:
-        """
-        Recursively resolve all $ref in a schema using jsonschema.
-        If you have external schemas, pass them via schema_store.
-        resolved_schemas structure:
-        {
-          "schema_name": {
-            "referred_in": [list of schemas where it was referenced],
-            "schema": resolved_schema_dict
-          }
-        }
-        """
         if not isinstance(schema, dict):
             raise TypeError(f"Expected schema to be dict, got {type(schema)}: {schema}")
 
         resolver = RefResolver.from_schema(schema, store=schema_store or {})
+
+        def _ensure_entry(name):
+            self.resolved_schemas.setdefault(name, {
+                "referred_in": set(),
+                "referred_to": set(),
+                "schema": None,
+            })
 
         def _resolve(node, name):
             if isinstance(node, dict):
                 if "$ref" in node:
                     ref = node["$ref"]
 
-                    # ensure entry exists
-                    self.resolved_schemas.setdefault(ref, {"referred_in": [], "schema": None})
-                    self.resolved_schemas[ref]["referred_in"].append(name)
+                    _ensure_entry(ref)
+                    _ensure_entry(name)
+
+                    # record both ways
+                    self.resolved_schemas[ref]["referred_in"].add(name)
+                    self.resolved_schemas[name]["referred_to"].add(ref)
 
                     if self.resolved_schemas[ref]["schema"] is not None:
                         return self.resolved_schemas[ref]["schema"]
@@ -78,6 +79,11 @@ class SchemaResolver:
 
             return node
 
-        self.resolved_schemas.setdefault(version, {"referred_in": [], "schema": None})
+        _ensure_entry(version)
         self.resolved_schemas[version]["schema"] = _resolve(schema, version)
-        return self.resolved_schemas[version]
+
+        # --- enforce symmetry after recursion ---
+        for schema_name, entry in list(self.resolved_schemas.items()):
+            for ref in list(entry["referred_to"]):
+                _ensure_entry(ref)
+                self.resolved_schemas[ref]["referred_in"].add(schema_name)

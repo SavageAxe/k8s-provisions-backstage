@@ -14,8 +14,10 @@ async def generate_router(app):
     for resource in resources_config:
         config = resources_config[resource]
         schemas_git = Git(config["SCHEMAS_REPO_URL"], config["SCHEMAS_ACCESS_TOKEN"])
+        await schemas_git.async_init()
         schema_manager = SchemaLoader(resource, schemas_git)
         values_git = Git(config["VALUES_REPO_URL"], config["VALUES_ACCESS_TOKEN"])
+        await values_git.async_init()
         argocd = ArgoCD(argocd_url, argocd_token, application_set_timeout)
         rg = RouterGenerator(app, resource, values_git, schema_manager, argocd)
         await rg.schema_manager.load_all_schemas()

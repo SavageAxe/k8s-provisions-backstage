@@ -7,7 +7,11 @@ from app.src.api.git import GitAPI, GitError
 class Git:
     def __init__(self, base_url, token):
         self.api = GitAPI(base_url, token)
+        self.last_commit = None
 
+    async def async_init(self):
+        last_commit = await self.api.get_last_commit()
+        self.last_commit = last_commit["sha"]
 
     async def modify_values(self, region, namespace, name, resource, values):
         path = f'/{region}/{namespace}/{name}.yaml'
@@ -36,20 +40,19 @@ class Git:
 
     async def get_changed_files(self, path, since, until):
         commits = await self.api.commits_per_path(path, since, until)
+
         if not commits:
             return []
 
-        changed_files = []
+        commits = sorted(commits, key=lambda c: c["commit"]["author"]["date"])
 
-        for commit in commits:
-            sha = commit['sha']
-            commit = await self.api.get_commit(sha)
-            for file in commit['files']:
-                filename = file['filename']
-                if filename.startswith(path.lstrip("/")) and filename not in changed_files:
-                    changed_files.append(filename)
+        head = commits[-1]["sha"]
 
-        return changed_files
+        diff = await self.api.compare_commits(self.last_commit, head)
+
+        self.last_commit = head
+
+        return diff["files"]
 
     async def list_dir(self, path):
         response = await self.api.list_dir(path)
