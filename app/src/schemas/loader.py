@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Any, Set, List
+from typing import Dict, Any, Set, List, Optional, Tuple
 from loguru import logger
 import asyncio
 import json
@@ -124,22 +124,63 @@ class SchemaLoader:
             for name, entry in self.resolver.resolved_schemas.items()
         }
 
-    async def _remove_schema(self, schema_name: str, changed_schemas: list) -> None:
+    from typing import List, Tuple, Optional
+
+    def can_remove_schema(self, schema_name: str, changed_schemas: List) -> Tuple[bool, Optional[str]]:
+        """
+        Validate if schema_name can be removed:
+        - It exists in resolver
+        - All schemas that depend on it are also removed in this batch
+        Returns: (can_remove, reason)
+        """
         entry = self.resolver.resolved_schemas.get(schema_name)
         if not entry:
+            # Already gone from resolver, nothing to validate
+            return True, None
+
+        dependents = set(entry["referred_in"])
+        missing = []
+
+        for d in dependents:
+            found = False
+            for cs in changed_schemas:
+                # Case 1: structured dict {filename, status}
+                if isinstance(cs, dict):
+                    if _normalize_name(cs.get("filename", "")) == d and cs.get("status") == "removed":
+                        found = True
+                        break
+                # Case 2: plain string schema name
+                elif isinstance(cs, str):
+                    if _normalize_name(cs) == d:
+                        found = True
+                        break
+            if not found:
+                missing.append(d)
+
+        if missing:
+            reason = f"Schema {schema_name} is still referred in by: {sorted(missing)}"
+            logger.error(f"ERROR: {reason}")
+            return False, reason
+
+        return True, None
+
+
+    async def _remove_schema(self, schema_name: str, changed_schemas: list) -> None:
+        """
+        Remove schema from resolver + store after validating with can_remove_schema
+        """
+        can_remove, reason = self.can_remove_schema(schema_name, changed_schemas)
+        if not can_remove:
+            logger.error(f"Skip removing {schema_name}: {reason}")
+            return
+
+        entry = self.resolver.resolved_schemas.get(schema_name)
+        if not entry:
+            # Already gone, just drop from store if present
             self.schemas.pop(schema_name, None)
             return
 
-        dependents = set(entry["referred_in"])
-        missing = [
-            d for d in dependents
-            if not any(_normalize_name(cs["filename"]) == d and cs["status"] == "removed"
-                       for cs in changed_schemas)
-        ]
-        if missing:
-            logger.error(f"ERROR: Cannot remove {schema_name}, still referred in: {sorted(missing)}")
-            return
-
+        # unlink references
         for ref in set(entry["referred_to"]):
             peer = self.resolver.resolved_schemas.get(ref)
             if peer:
@@ -150,9 +191,11 @@ class SchemaLoader:
             if peer:
                 peer["referred_to"].discard(schema_name)
 
+        # drop schema
         self.resolver.resolved_schemas.pop(schema_name, None)
         self.schemas.pop(schema_name, None)
 
+        # rebuild impacted (empty set here means just refresh snapshot)
         await self._rebuild_impacted(set())
 
     async def _update_schema(self, schema_name: str, filename: str) -> None:
