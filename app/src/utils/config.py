@@ -10,6 +10,12 @@ class Config(BasicSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8",extra="allow")
 
+    SCHEMA_POLLER_INTERVAL: int = Field(
+        description="Interval in seconds between polling for configuration changes.",
+        default=10,
+        examples=[10, 60]
+    )
+
     ARGOCD_URL: str = Field(
         description="The service owner's ArgoCD URL.",
         examples=["http://localhost:8080", "https://my.argo.cd.fqdn"],
@@ -35,9 +41,7 @@ class Config(BasicSettings):
     def get_resource_config(self, resource: str):
         return {
             'VALUES_REPO_URL': os.getenv(f'{resource.upper()}_VALUES_REPO_URL'),
-            'VALUES_REPO_PRIVATE_KEY': os.getenv(f'{resource.upper()}_VALUES_REPO_PRIVATE_KEY'),
             'SCHEMAS_REPO_URL': os.getenv(f'{resource.upper()}_SCHEMAS_REPO_URL'),
-            'SCHEMAS_REPO_PRIVATE_KEY': os.getenv(f'{resource.upper()}_SCHEMAS_REPO_PRIVATE_KEY'),
             'VALUES_ACCESS_TOKEN': os.getenv(f'{resource.upper()}_VALUES_ACCESS_TOKEN'),
             'SCHEMAS_ACCESS_TOKEN': os.getenv(f'{resource.upper()}_SCHEMAS_ACCESS_TOKEN'),
         }

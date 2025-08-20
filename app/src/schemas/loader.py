@@ -1,11 +1,11 @@
 import re
-from typing import Dict, Any, Set, List, Optional, Tuple
+from typing import Dict, Any, Set, List
 from loguru import logger
 import asyncio
 import json
-from datetime import datetime, timezone
-from ..utils.openapi import update_openapi_schema
+from datetime import datetime, timezone, timedelta
 from .resolver import SchemaResolver
+from ..utils import Config
 
 
 def is_version(string: str) -> bool:
@@ -16,7 +16,7 @@ def is_version(string: str) -> bool:
     )
 
 
-def _normalize_name(filename: str) -> str:
+def normalize_name(filename: str) -> str:
     """schemas/base-schema.json -> base-schema.json, schema-0.1.0.json -> 0.1.0"""
     name = filename.split("/")[-1]
     if is_version(name):
@@ -146,12 +146,12 @@ class SchemaLoader:
             for cs in changed_schemas:
                 # Case 1: structured dict {filename, status}
                 if isinstance(cs, dict):
-                    if _normalize_name(cs.get("filename", "")) == d and cs.get("status") == "removed":
+                    if normalize_name(cs.get("filename", "")) == d and cs.get("status") == "removed":
                         found = True
                         break
                 # Case 2: plain string schema name
                 elif isinstance(cs, str):
-                    if _normalize_name(cs) == d:
+                    if normalize_name(cs) == d:
                         found = True
                         break
             if not found:
@@ -209,6 +209,8 @@ class SchemaLoader:
         impacted = _dependents_closure(self.resolver.resolved_schemas, schema_name)
         await self._rebuild_impacted(impacted)
 
+
+
     async def _add_schema(self, schema_name: str, filename: str, changed_schemas: list) -> None:
         try:
             raw = await self.git.get_file_content(filename)
@@ -221,8 +223,8 @@ class SchemaLoader:
         refs = _collect_refs(new_schema)
         missing = [
             r for r in refs
-            if _normalize_name(r) not in self.schemas
-            and not any(_normalize_name(cs["filename"]) == _normalize_name(r) and cs["status"] == "added"
+            if normalize_name(r) not in self.schemas
+            and not any(normalize_name(cs["filename"]) == normalize_name(r) and cs["status"] == "added"
                         for cs in changed_schemas)
         ]
         if missing:
@@ -233,7 +235,7 @@ class SchemaLoader:
         impacted = _dependents_closure(self.resolver.resolved_schemas, schema_name)
         await self._rebuild_impacted(impacted)
 
-    async def sync_schemas(self):
+    async def sync_schemas(self, interval):
         last_sync = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         while True:
@@ -246,7 +248,7 @@ class SchemaLoader:
                 filename = item["filename"]
                 logger.info(f"Processing {filename}")
                 status = item["status"]
-                schema_name = _normalize_name(filename)
+                schema_name = normalize_name(filename)
 
                 if status == "removed":
                     logger.info(f"Removing {schema_name}")
@@ -260,7 +262,9 @@ class SchemaLoader:
                     logger.info(f"Adding {schema_name}")
                     await self._add_schema(schema_name, filename, changed_schemas)
 
-                update_openapi_schema(self.app, f"{self.resource}'s API", f"An api for {self.resource} provisioning.")
+            if changed_schemas:
+                return changed_schemas
 
             last_sync = now
-            await asyncio.sleep(10)
+
+            await asyncio.sleep(interval)

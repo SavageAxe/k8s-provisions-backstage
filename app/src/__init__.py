@@ -12,7 +12,7 @@ def extend_lifespan(original_lifespan):
         # startup: add schema sync
         tasks = []
         for rg in getattr(app.state, "router_generators", []):
-            tasks.append(asyncio.create_task(rg.schema_manager.sync_schemas()))
+            tasks.append(asyncio.create_task(rg.sync_schemas()))
 
         # run the original lifespan
         async with original_lifespan(app):

@@ -8,3 +8,5 @@ def update_openapi_schema(app, title, description) -> None:
         description=description,
         routes=app.routes,
     )
+
+    return app
