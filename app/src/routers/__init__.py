@@ -22,7 +22,6 @@ async def generate_router(app):
         rg = RouterGenerator(app, resource, values_git, schema_manager, argocd)
         await rg.schema_manager.load_all_schemas()
         await rg.generate_routes()
-        app.include_router(rg.router, prefix=f"/v1/{resource}")
 
         app.state.router_generators.append(rg)
 

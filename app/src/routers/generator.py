@@ -31,12 +31,10 @@ class RouterGenerator:
     def __init__(self, app, resource, git, schema_manager, argocd):
         self.app = app
         self.resource = resource
-        self.router = APIRouter()
         self.argocd = argocd
         self.git = git
         self.schema_manager = schema_manager
         self.models = {}
-        self.app.include_router(self.router, prefix=f'/v1/{self.resource}')
 
 
     async def generate_routes(self):
@@ -278,11 +276,6 @@ class RouterGenerator:
                     if not (isinstance(r, APIRoute) and r.path in {f"/v1/{self.resource}/{path.lstrip('/')}", f"/v1/{self.resource}/{definition_path.lstrip('/')}"})
                 ]
 
-                self.router.routes = [
-                    r for r in self.router.routes
-                    if not (isinstance(r, APIRoute) and r.path in {path, definition_path})
-                ]
-
                 if schema_name in self.models:
                     del self.models[schema_name]
 
@@ -306,7 +299,7 @@ class RouterGenerator:
         # Collect existing (path, frozenset(methods)) pairs
         existing = {
             (r.path, frozenset(r.methods))
-            for r in list(self.router.routes) + list(self.app.router.routes)
+            for r in list(self.app.router.routes)
             if isinstance(r, APIRoute)
         }
 
