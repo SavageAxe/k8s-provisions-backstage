@@ -262,13 +262,12 @@ class RouterGenerator:
     async def sync_schemas(self):
         schema_poller_interval = cfg.SCHEMA_POLLER_INTERVAL
         while True:
-            changed_schemas = await self.schema_manager.sync_schemas(schema_poller_interval)
+            changed_versions = await self.schema_manager.sync_schemas(schema_poller_interval)
             await asyncio.sleep(0)
 
-            for item in changed_schemas:
-                schema_name = normalize_name(item["filename"])
+            for version in changed_versions:
 
-                path = f"/{schema_name}"
+                path = f"/{version}"
                 definition_path = f"{path}/definition"
 
                 self.app.router.routes = [
@@ -276,8 +275,9 @@ class RouterGenerator:
                     if not (isinstance(r, APIRoute) and r.path in {f"/v1/{self.resource}/{path.lstrip('/')}", f"/v1/{self.resource}/{definition_path.lstrip('/')}"})
                 ]
 
-                if schema_name in self.models:
-                    del self.models[schema_name]
+                model_name = f"{self.resource}_{version}_Model"
+                if model_name in self.models:
+                    del self.models[model_name]
 
             await self.generate_routes()
 

@@ -263,7 +263,15 @@ class SchemaLoader:
                     await self._add_schema(schema_name, filename, changed_schemas)
 
             if changed_schemas:
-                return changed_schemas
+                impacted = set()
+                for item in changed_schemas:
+                    schema_name = normalize_name(item["filename"])
+                    impacted |= _dependents_closure(self.resolver.resolved_schemas, schema_name)
+
+                impacted_versions = [s for s in impacted if is_version(f"schema-{s}.json")]
+
+                logger.info(f"Impacted versions: {impacted_versions}")
+                return list(impacted_versions)
 
             last_sync = now
 
