@@ -1,4 +1,5 @@
 gitpython
 python-dotenv
 jsonschema
-requests 
+requests
+deepdiff

@@ -1,6 +1,6 @@
 import asyncio
 import yaml
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import HTTPException, Depends
 from typing import List
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
@@ -9,9 +9,27 @@ from ..models.remove_check import RemoveCheckRequest, RemoveCheckResponse
 from ..schemas import schema_to_model
 import re
 from app.src.models.resource_metadata import ResourceMetadata
-from ..schemas.loader import normalize_name
+from deepdiff import DeepDiff
 from ..utils import config as cfg
 from app.general.utils import basicSettings
+
+
+def _normalize(data):
+    if isinstance(data, dict):
+        return {k: _normalize(v) for k, v in sorted(data.items())}
+    if isinstance(data, list):
+        return sorted((_normalize(i) for i in data), key=lambda x: str(x))
+    return data
+
+
+def yaml_data_equals(yaml_data_1, yaml_data_2):
+    if isinstance(yaml_data_1, str):
+        yaml_data_1 = yaml.safe_load(yaml_data_1)
+    if isinstance(yaml_data_2, str):
+        yaml_data_2 = yaml.safe_load(yaml_data_2)
+
+    return _normalize(yaml_data_1) == _normalize(yaml_data_2)
+
 
 def parse_payload(payload):
     data = payload.model_dump(mode="json")
@@ -20,7 +38,7 @@ def parse_payload(payload):
     namespace = data.pop("namespace")
     app_name = data.pop("applicationName")
     region = data.pop("region")
-    yaml_data = yaml.safe_dump(data, sort_keys=False)
+    yaml_data = yaml.safe_dump(data["values"], sort_keys=False)
     path = f'/{region}/{namespace}/{app_name}.yaml'
 
     return path, yaml_data, region, namespace, app_name
@@ -129,6 +147,15 @@ class RouterGenerator:
         async def handler(payload: model):
 
             path, yaml_data, region, namespace, app_name = parse_payload(payload)
+
+            current_data = await self.git.get_file_content(path)
+
+            if yaml_data_equals(current_data, yaml_data):
+                return JSONResponse(
+                    status_code=200,
+                    content={"message": "Resource already up to date", "values": current_data}
+                )
+
             commit_message = f"modify {self.resource} for {app_name} in {region} on {namespace}"
             await self.git.modify_file(path, commit_message ,yaml_data)
 
