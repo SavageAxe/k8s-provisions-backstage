@@ -81,7 +81,8 @@ class GitAPI:
     async def modify_file_content(self, path, commit_message, content):
 
         try:
-            sha = await self.get_file(path)["sha"]
+            file = await self.get_file(path)
+            sha = file["sha"]
 
         except GitError as e:
             logger.debug(f"Failed to get file sha: {path}")
@@ -97,7 +98,7 @@ class GitAPI:
         }
 
         try:
-            response = await self.api.put(f"/contents/{path.lstrip()}", json=payload)
+            response = await self.api.put(f"/contents/{path.lstrip('/')}", json=payload)
             handle_response(response)
 
         except httpx.RequestError as e:

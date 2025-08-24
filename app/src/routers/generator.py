@@ -129,7 +129,8 @@ class RouterGenerator:
         async def handler(payload: model):
 
             path, yaml_data, region, namespace, app_name = parse_payload(payload)
-            await self.git.modify_file(path, yaml_data)
+            commit_message = f"modify {self.resource} for {app_name} in {region} on {namespace}"
+            await self.git.modify_file(path, commit_message ,yaml_data)
 
             # Trigger ArgoCD sync
             await self.argocd.sync(region, namespace, app_name, self.resource)
