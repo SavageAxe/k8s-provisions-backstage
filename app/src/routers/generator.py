@@ -49,8 +49,6 @@ class RouterGenerator:
             if re.fullmatch(r"\d+\.\d+\.\d+", version):
                 self._register_resource_version_routes(version)
 
-        self.update_openapi_schema()
-
 
     def _register_resource_general_routes(self):
 
@@ -176,7 +174,7 @@ class RouterGenerator:
         )
 
         self._safe_add_api_route(
-            "/",
+            path,
             self._make_update_resource_handler(version),
             methods=["PATCH"],
             name=f"Modify specific {self.resource}",
@@ -290,6 +288,10 @@ class RouterGenerator:
 
             await self.generate_routes()
 
+            self.update_openapi_schema()
+
+
+
     def _safe_add_api_route(
             self,
             path: str,
@@ -299,7 +301,7 @@ class RouterGenerator:
             name: str,
             tags: list[str]
     ):
-        actual_path = f"/{path.lstrip('/')}"
+        actual_path = f"/v1/{self.resource}/{path.lstrip('/')}"
 
         # Collect existing (path, frozenset(methods)) pairs
         existing = {
@@ -311,7 +313,8 @@ class RouterGenerator:
         # Allow same path if methods differ
         if (actual_path, frozenset(methods)) not in existing \
                 and (f"/v1/{self.resource}{actual_path}", frozenset(methods)) not in existing:
-            self.router.add_api_route(
+
+            self.app.add_api_route(
                 actual_path,
                 handler_maker,
                 methods=methods,
@@ -320,7 +323,6 @@ class RouterGenerator:
                 tags=tags,
             )
 
-            self.update_openapi_schema()
 
     def update_openapi_schema(self):
         def custom_openapi():
