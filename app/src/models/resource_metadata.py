@@ -1,11 +1,12 @@
 from pydantic import BaseModel, Field
 from enum import Enum
-import re
+from ..utils import config
 
 class AllowedRegions(str, Enum):
-    SHEKER1 = "sheker1"
-    SHEKER2 = "sheker2"
-    SHEKER3 = "sheker3"
+    pass
+
+for region in config.REGIONS:
+    setattr(AllowedRegions, region.upper(), region)
 
 class ResourceMetadata(BaseModel):
     region: AllowedRegions

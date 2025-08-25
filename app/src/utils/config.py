@@ -32,11 +32,17 @@ class Config(BasicSettings):
         examples=[10, 15],
     )
 
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+
+    REGIONS: list[str] = Field(
+        description="A list of regions where resources could be created.",
+        examples=[["dev", "test"],["qa", "int"]]
+    )
+
+    # @classmethod
+    # def get_instance(cls):
+    #     if cls._instance is None:
+    #         cls._instance = cls()
+    #     return cls._instance
 
     def get_resource_config(self, resource: str):
         return {

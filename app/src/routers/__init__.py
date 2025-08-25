@@ -20,8 +20,7 @@ async def generate_router(app):
         await values_git.async_init()
         argocd = ArgoCD(argocd_url, argocd_token, application_set_timeout)
         rg = RouterGenerator(app, resource, values_git, schema_manager, argocd)
-        await rg.schema_manager.load_all_schemas()
-        await rg.generate_routes()
+        await rg.run()
 
         app.state.router_generators.append(rg)
 

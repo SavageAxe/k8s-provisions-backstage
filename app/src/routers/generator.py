@@ -8,8 +8,9 @@ from starlette.responses import JSONResponse
 from ..models.remove_check import RemoveCheckRequest, RemoveCheckResponse
 from ..schemas import schema_to_model
 import re
+from loguru import logger
 from app.src.models.resource_metadata import ResourceMetadata
-from deepdiff import DeepDiff
+from ..services.argocd import build_app_name
 from ..utils import config as cfg
 from app.general.utils import basicSettings
 
@@ -44,7 +45,6 @@ def parse_payload(payload):
     return path, yaml_data, region, namespace, app_name
 
 
-
 class RouterGenerator:
     def __init__(self, app, resource, git, schema_manager, argocd):
         self.app = app
@@ -53,7 +53,23 @@ class RouterGenerator:
         self.git = git
         self.schema_manager = schema_manager
         self.models = {}
+        self.namespaces_regions_map = set()
 
+    async def run(self):
+        await self.create_namespaces_regions_map()
+        await self.schema_manager.load_all_schemas()
+        await self.generate_routes()
+
+    async def create_namespaces_regions_map(self):
+        regions_map = {}
+        for region in cfg.REGIONS:
+            cluster_secret_values = yaml.safe_load(
+                await self.argocd.get_app_values(f"{region}-cluster-secret")
+            )
+            raw_namespaces = cluster_secret_values.get("namespaces", [])
+            namespaces = [ns.strip() for ns in raw_namespaces.split(",")]
+            regions_map[region] = namespaces
+        self.namespaces_regions_map = regions_map
 
     async def generate_routes(self):
 
@@ -111,11 +127,14 @@ class RouterGenerator:
 
             region, namespace, name = params.region, params.namespace, params.name
             path = f'/{region}/{namespace}/{name}.yaml'
+            app_name = build_app_name(region, namespace, name, self.resource)
 
             await self.git.delete_file(path)
 
             try:
-                self.argocd.sync(region, namespace, name, self.resource)
+                logger.info(
+                    f"Triggered ArgoCD sync for {name}'s {self.resource} at region: {region} in namespace: {namespace}")
+                await self.argocd.sync(app_name)
 
             except Exception as e:
 
@@ -223,7 +242,12 @@ class RouterGenerator:
 
             region, namespace, name = params.region, params.namespace, params.name
 
-            sync_status = await self.argocd.get_app_status(region, namespace, name, self.resource)
+            app_name = build_app_name(region, namespace, name, self.resource)
+
+            logger.info(
+                f"Getting ArgoCD app status for {name}'s {self.resource} at region: {region} in namespace: {namespace}")
+
+            sync_status = await self.argocd.get_app_status(app_name)
 
             return JSONResponse({
                 "status": sync_status["status"],
@@ -239,11 +263,15 @@ class RouterGenerator:
         
         async def handler(payload: model):
 
-            path, yaml_data, region, namespace, app_name = parse_payload(payload)
+            path, yaml_data, region, namespace, name = parse_payload(payload)
+            app_name = build_app_name(region, namespace, name, self.resource)
+
             await self.git.add_file(path, yaml_data)
 
             # Trigger ArgoCD sync
-            await self.argocd.sync(region, namespace, app_name, self.resource)
+            logger.info(
+                f"Triggered ArgoCD sync for {name}'s {self.resource} at region: {region} in namespace: {namespace}")
+            await self.argocd.sync(app_name)
 
             return JSONResponse(
                 status_code=202,

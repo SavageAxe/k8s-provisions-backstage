@@ -32,10 +32,7 @@ class ArgoCD:
         raise Exception(f"Timed out waiting for {app_name}")
 
 
-    async def sync(self, region, namespace, name, resource):
-
-        logger.info(f"Triggered ArgoCD sync for {name}'s {resource} at region: {region} in namespace: {namespace}")
-        app_name = build_app_name(region, namespace, name, resource)
+    async def sync(self, app_name):
 
         await self.wait_for_app_creation(app_name)
 
@@ -47,21 +44,18 @@ class ArgoCD:
             raise e
 
 
-    async def get_app_status(self, region, namespace, name, resource):
+    async def get_app_status(self, app_name):
 
-        logger.info(f"Getting ArgoCD app status for {name}'s {resource} at region: {region} in namespace: {namespace}")
-
-        app_name = build_app_name(region, namespace, name, resource)
-
-        try:
-            response = await self.api.get_app(app_name)
-            response = json.loads(response.body)
-
-        except ExternalServiceError as e:
-            logger.error(f"Failed to get app status for {app_name}")
-            raise e
+        response = await self.api.get_app(app_name)
+        response = json.loads(response.body)
 
         return response["status"]["sync"]
 
 
+    async def get_app_values(self, app_name):
+        logger.info(f"Getting ArgoCD app values for {app_name}")
 
+        response = await self.api.get_app(app_name)
+        response = json.loads(response.body)
+
+        return response["spec"]["source"]["helm"]["values"]
