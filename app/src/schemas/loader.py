@@ -270,6 +270,11 @@ class SchemaLoader:
 
                 impacted_versions = [s for s in impacted if is_version(f"schema-{s}.json")]
 
+                for version in impacted_versions:
+                    self.resolved_schemas.pop(version, None)
+
+                await self.resolve_schemas()
+
                 logger.info(f"Impacted versions: {impacted_versions}")
                 return list(impacted_versions)
 
