@@ -1,3 +1,5 @@
+import json
+
 import httpx
 from fastapi.responses import JSONResponse
 from app.general.database import BaseAPI
@@ -60,3 +62,25 @@ class ArgoCDAPI:
         return JSONResponse(status_code=response.status_code,
                         content=response.json(),
                         headers=response.headers)
+
+
+    async def patch_app(self, app_definition, app_name, namespace, project):
+        uri = f"/api/v1/applications/{app_name}"
+
+        data = {
+            "appNamespace": namespace,
+            "name": app_name,
+            "patch": json.dumps(app_definition),
+            "patchType": "merge",
+            "project": project
+        }
+
+        data = json.dumps(data)
+
+        try:
+            response = await self.api.patch(endpoint=uri, data=data)
+            print()
+            handle_response(response)
+
+        except httpx.RequestError as e:
+            raise ArgoCDError(status_code=500, detail=f"Request error: {str(e)}")

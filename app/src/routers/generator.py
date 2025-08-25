@@ -71,6 +71,7 @@ class RouterGenerator:
             regions_map[region] = namespaces
         self.namespaces_regions_map = regions_map
 
+
     async def generate_routes(self):
 
         for version, schema in self.schema_manager.resolved_schemas.items():
@@ -264,9 +265,24 @@ class RouterGenerator:
         async def handler(payload: model):
 
             path, yaml_data, region, namespace, name = parse_payload(payload)
+            namespaces = self.namespaces_regions_map[region]
+
+            if not namespace in namespaces:
+                namespaces.append(namespace)
+                namespaces_value = ", ".join(namespaces)
+                values = yaml.safe_load(
+                    await self.argocd.get_app_values(f"{region}-cluster-secret")
+                )
+
+                values["namespaces"] = namespaces_value
+
+                await self.argocd.modify_values(values, f"{region}-cluster-secret", "argocd", "default")
+                await self.argocd.sync(f"{region}-cluster-secret")
+                self.namespaces_regions_map[region] = namespaces
+
             app_name = build_app_name(region, namespace, name, self.resource)
 
-            await self.git.add_file(path, yaml_data)
+            await self.git.add_file(path, f"Create {self.resource} in {region=} on {namespace=} for {app_name=}" ,yaml_data)
 
             # Trigger ArgoCD sync
             logger.info(

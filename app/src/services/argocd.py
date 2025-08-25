@@ -1,3 +1,5 @@
+import yaml
+
 from app.src.api.argocd import ArgoCDAPI
 from loguru import logger
 import json
@@ -59,3 +61,21 @@ class ArgoCD:
         response = json.loads(response.body)
 
         return response["spec"]["source"]["helm"]["values"]
+
+
+    async def modify_values(self, values, app_name, namespace, project):
+
+        values_yaml = yaml.safe_dump(values)
+        data = {
+            "spec": {
+                "source": {
+                    "helm": {
+                        "values": values_yaml,
+                    }
+                }
+            }
+        }
+
+        await self.api.patch_app(data, app_name, namespace, project)
+
+

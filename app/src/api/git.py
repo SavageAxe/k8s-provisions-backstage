@@ -52,7 +52,7 @@ class GitAPI:
 
     async def get_file(self, path: str):
         try:
-            response = await self.api.get(f"/contents/{path.lstrip()}")
+            response = await self.api.get(f"/contents/{path.lstrip('/')}")
             handle_response(response)
 
         except httpx.RequestError as e:
@@ -71,7 +71,7 @@ class GitAPI:
         }
 
         try:
-            response = await self.api.delete(f"/contents/{path.lstrip()}", json=payload)
+            response = await self.api.delete(f"/contents/{path.lstrip('/')}", json=payload)
             handle_response(response)
 
         except httpx.RequestError as e:
@@ -107,7 +107,7 @@ class GitAPI:
 
     async def list_dir(self, path: str) -> list[str]:
         try:
-            response = await self.api.get(f"/contents/{path.lstrip()}")
+            response = await self.api.get(f"/contents/{path.lstrip('/')}")
             handle_response(response)
 
         except httpx.RequestError as e:
@@ -126,7 +126,7 @@ class GitAPI:
         }
 
         try:
-            response = await self.api.put(f"/contents/{path.lstrip()}", json=payload)
+            response = await self.api.put(f"/contents/{path.lstrip('/')}", json=payload)
             handle_response(response)
 
         except httpx.RequestError as e:
