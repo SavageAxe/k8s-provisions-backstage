@@ -391,12 +391,16 @@ class RouterGenerator:
 
     def update_openapi_schema(self):
         def custom_openapi():
-            return get_openapi(
+            schema = get_openapi(
                 title="Your API",
                 version=basicSettings.OPENAPI_VERSION,
                 description="Dynamic API example",
                 routes=self.app.router.routes,
             )
+            root_path = self.app.root_path or ""
+            if root_path:
+                schema["servers"] = [{"url": root_path}]
+            return schema
 
         # Clear cache and assign
         self.app.openapi_schema = None
