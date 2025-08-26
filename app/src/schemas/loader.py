@@ -248,19 +248,21 @@ class SchemaLoader:
                 filename = item["filename"]
                 logger.info(f"Processing {filename}")
                 status = item["status"]
-                schema_name = normalize_name(filename)
 
-                if status == "removed":
-                    logger.info(f"Removing {schema_name}")
-                    await self._remove_schema(schema_name, changed_schemas)
+                if filename.startswith("schemas"):
+                    schema_name = normalize_name(filename)
 
-                elif status == "modified":
-                    logger.info(f"Modifying {schema_name}")
-                    await self._update_schema(schema_name, filename)
+                    if status == "removed":
+                        logger.info(f"Removing {schema_name}")
+                        await self._remove_schema(schema_name, changed_schemas)
 
-                elif status == "added":
-                    logger.info(f"Adding {schema_name}")
-                    await self._add_schema(schema_name, filename, changed_schemas)
+                    elif status == "modified":
+                        logger.info(f"Modifying {schema_name}")
+                        await self._update_schema(schema_name, filename)
+
+                    elif status == "added":
+                        logger.info(f"Adding {schema_name}")
+                        await self._add_schema(schema_name, filename, changed_schemas)
 
             if changed_schemas:
                 impacted = set()
