@@ -3,4 +3,5 @@ LICENSE
 .venv
 .cache
 .idea
+Library
 .DS_STORE
