@@ -28,9 +28,9 @@ def extend_lifespan(original_lifespan):
 
     return wrapper
 
-async def update_app(app: FastAPI, current_lifespan) -> FastAPI:
+async def update_app(app: FastAPI) -> FastAPI:
     add_exception_handlers(app)
     app.state.router_generators = []
     app = await generate_router(app)
-    app.router.lifespan_context = extend_lifespan(current_lifespan)
+    app.router.lifespan_context = extend_lifespan(app.router.lifespan_context)
     return app

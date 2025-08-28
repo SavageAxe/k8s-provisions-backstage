@@ -111,4 +111,4 @@ def general_create_app(
             """
             return {"message": f"Welcome to {basicSettings.APP_NAME}!"}
 
-    return app, lifespan
+    return app
