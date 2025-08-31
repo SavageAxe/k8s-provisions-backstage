@@ -30,7 +30,7 @@ class ArgoCD:
             except ExternalServiceError as e:
                 if e.status_code != 403:
                     raise e
-                asyncio.sleep(1)
+                await asyncio.sleep(1)
                 timeout += 1
 
         raise Exception(f"Timed out waiting for {app_name}")
