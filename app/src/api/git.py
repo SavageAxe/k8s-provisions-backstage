@@ -1,8 +1,5 @@
-import asyncio
 import base64
-
 import httpx
-from fastapi.responses import JSONResponse
 from ...general.database.basic_api import BaseAPI
 from ..errors.external_service import ExternalServiceError
 from loguru import logger
@@ -45,7 +42,7 @@ def handle_response(response: httpx.Response):
 
 class GitAPI:
     def __init__(self, base_url, token):
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {token}"}
         self.base_url = base_url
         self.token = token
         self.api = BaseAPI(base_url.rstrip('/'), headers=headers)
