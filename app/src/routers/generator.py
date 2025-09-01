@@ -53,7 +53,7 @@ class RouterGenerator:
         self.git = git
         self.schema_manager = schema_manager
         self.models = {}
-        self.namespaces_regions_map = set()
+        self.namespaces_regions_map = dict()
 
     async def run(self):
         await self.create_namespaces_regions_map()

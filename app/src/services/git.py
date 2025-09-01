@@ -1,7 +1,5 @@
-import asyncio
 import base64
-
-from app.src.api.git import GitAPI, GitError
+from app.src.api.git import GitAPI
 
 
 class Git:
