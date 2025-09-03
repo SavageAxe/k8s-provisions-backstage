@@ -135,7 +135,7 @@ class RouterGenerator:
 
             await self.git.delete_file(path)
 
-            secret_path = f'/{self.team_name}/{namespace}"
+            secret_path = f'/{self.team_name}/{namespace}'
             await self.vault.delete_secret(secret_path)
 
             try:
