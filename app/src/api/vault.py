@@ -52,6 +52,8 @@ class VaultAPI:
         except httpx.RequestError as e:
             raise VaultError(status_code=500, detail=f"Vault request failed: {e}")
 
+        return response.json()
+
     async def write_secret(self, path: str, data: dict) -> JSONResponse:
         try:
             secret_path = generate_secret_path(path)
