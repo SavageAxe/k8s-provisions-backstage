@@ -38,6 +38,21 @@ class Config(BasicSettings):
         examples=[["dev", "test"],["qa", "int"]]
     )
 
+    VAULT_URL: str = Field(
+        description="Base URL for HashiCorp Vault (e.g., https://vault.company.com)",
+        examples=["http://localhost:8200", "https://vault.example.com"]
+    )
+
+    VAULT_TOKEN: str = Field(
+        description="Token used to authenticate to Vault.",
+        examples=["hvs.CAESIJ...", "s.xxxxxx"]
+    )
+
+    TEAM_NAME: str = Field(
+        description="Team name used as Vault mount path prefix.",
+        examples=["perimeter", "platform"],
+    )
+
     # @classmethod
     # def get_instance(cls):
     #     if cls._instance is None:

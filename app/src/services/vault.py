@@ -13,3 +13,6 @@ class Vault:
 
     async def write_secret(self, path: str, data: dict):
         await self.api.write_secret(path, data)
+
+    async def delete_secret(self, path: str):
+        await self.api.delete_secret(path)

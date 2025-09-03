@@ -79,7 +79,6 @@ class ArgoCDAPI:
 
         try:
             response = await self.api.patch(endpoint=uri, data=data)
-            print()
             handle_response(response)
 
         except httpx.RequestError as e:

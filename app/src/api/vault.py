@@ -34,6 +34,10 @@ def generate_secret_path(path: str) -> str:
     return f"{path.lstrip('/').split('/')[0]}/data/{'/'.join(path.lstrip('/').split('/')[1:])}"
 
 
+def generate_metadata_path(path: str) -> str:
+    return f"{path.lstrip('/').split('/')[0]}/metadata/{'/'.join(path.lstrip('/').split('/')[1:])}"
+
+
 class VaultAPI:
     def __init__(self, base_url: str, token: str):
         headers = {"X-Vault-Token": token, "Content-Type": "application/json"}
@@ -53,6 +57,17 @@ class VaultAPI:
         try:
             secret_path = generate_secret_path(path)
             response = await self.api.post(f"/v1/{secret_path}", json={"data": data})
+            handle_response(response)
+        except httpx.RequestError as e:
+            raise VaultError(status_code=500, detail=f"Vault request failed: {e}")
+
+        return response.json()
+
+    async def delete_secret(self, path: str) -> JSONResponse:
+        try:
+            # For KV v2, deleting a secret entirely uses the metadata endpoint
+            metadata_path = generate_metadata_path(path)
+            response = await self.api.delete(f"/v1/{metadata_path}")
             handle_response(response)
         except httpx.RequestError as e:
             raise VaultError(status_code=500, detail=f"Vault request failed: {e}")

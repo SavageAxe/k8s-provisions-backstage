@@ -46,13 +46,16 @@ def parse_payload(payload):
 
 
 class RouterGenerator:
-    def __init__(self, app, resource, git, schema_manager, argocd):
+    def __init__(self, app, resource, git, schema_manager, argocd, vault, team_name):
         self.app = app
         self.resource = resource
         self.argocd = argocd
         self.git = git
         self.schema_manager = schema_manager
         self.models = {}
+        self.vault = vault
+        # Initialize team name once (provided by caller)
+        self.team_name = team_name
         self.namespaces_regions_map = dict()
 
     async def run(self):
@@ -132,6 +135,9 @@ class RouterGenerator:
 
             await self.git.delete_file(path)
 
+            secret_path = f'/{self.team_name}/{namespace}"
+            await self.vault.delete_secret(secret_path)
+
             try:
                 logger.info(
                     f"Triggered ArgoCD sync for {name}'s {self.resource} at region: {region} in namespace: {namespace}")
@@ -179,8 +185,21 @@ class RouterGenerator:
             commit_message = f"modify {self.resource} for {app_name} in {region} on {namespace}"
             await self.git.modify_file(path, commit_message ,yaml_data)
 
+            # Also write provided secrets to Vault
+            data = payload.model_dump(mode="json")
+
+            secrets = (
+                data.get("secrets")
+                or (data.get("values") or {}).get("secrets")
+            )
+
+            if secrets:
+                for key, value in secrets.items():
+                    key_secret_path = f"/{self.team_name}/{namespace}/{key}"
+                    await self.vault.write_secret(key_secret_path, {"value": str(value)})
+
             # Trigger ArgoCD sync
-            await self.argocd.sync(region, namespace, app_name, self.resource)
+            await self.argocd.sync(app_name)
 
             return JSONResponse(
                 status_code=202,
@@ -283,6 +302,19 @@ class RouterGenerator:
             app_name = build_app_name(region, namespace, name, self.resource)
 
             await self.git.add_file(path, f"Create {self.resource} in {region=} on {namespace=} for {app_name=}" ,yaml_data)
+
+            # Also write provided secrets to Vault
+            data = payload.model_dump(mode="json")
+
+            secrets = (
+                data.get("secrets")
+                or (data.get("values") or {}).get("secrets")
+            )
+
+            if secrets:
+                for key, value in secrets.items():
+                    key_secret_path = f"/{self.team_name}/{namespace}/{key}"
+                    await self.vault.write_secret(key_secret_path, {"value": str(value)})
 
             # Trigger ArgoCD sync
             logger.info(

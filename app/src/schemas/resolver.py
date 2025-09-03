@@ -23,8 +23,6 @@ class SchemaResolver:
     def __init__(self) -> None:
         self.resolved_schemas: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
-    from jsonschema import RefResolver
-
     def resolve_refs(self, version: str, schema: dict, schema_store: dict) -> dict:
         if not isinstance(schema, dict):
             raise TypeError(f"Expected schema to be dict, got {type(schema)}: {schema}")
