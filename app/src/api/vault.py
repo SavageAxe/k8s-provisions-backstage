@@ -54,7 +54,7 @@ class VaultAPI:
 
         return response.json()
 
-    async def write_secret(self, path: str, data: dict) -> JSONResponse:
+    async def write_secret(self, path: str, data: dict):
         try:
             secret_path = generate_secret_path(path)
             response = await self.api.post(f"/v1/{secret_path}", json={"data": data})
@@ -62,7 +62,7 @@ class VaultAPI:
         except httpx.RequestError as e:
             raise VaultError(status_code=500, detail=f"Vault request failed: {e}")
 
-    async def delete_secret(self, path: str) -> JSONResponse:
+    async def delete_secret(self, path: str):
         try:
             # For KV v2, deleting a secret entirely uses the metadata endpoint
             metadata_path = generate_metadata_path(path)
