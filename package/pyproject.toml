@@ -16,6 +16,10 @@ dependencies = [
     "httpx>=0.27",
     "PyYAML>=6.0",
     "loguru>=0.7",
+    "fastapi>=0.110",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.0",
+    "prometheus-client>=0.16",
 ]
 
 [project.urls]
@@ -24,3 +28,9 @@ Homepage = "https://example.com/os4-tash"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["os4_tash*"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"os4_tash" = ["static/**/*"]

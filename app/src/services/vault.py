@@ -1,6 +1,6 @@
 import asyncio
-
 from app.src.api.vault import VaultAPI, VaultError
+from . import retry
 
 
 class Vault:
@@ -8,11 +8,11 @@ class Vault:
         self.api = VaultAPI(base_url, token)
 
     async def read_secret(self, path: str):
-        response = await self.api.read_secret(path)
+        response = await retry(lambda: self.api.read_secret(path))
         return response.get("data")
 
     async def write_secret(self, path: str, data: dict):
-        await self.api.write_secret(path, data)
+        await retry(lambda: self.api.write_secret(path, data))
 
     async def delete_secret(self, path: str):
-        await self.api.delete_secret(path)
+        await retry(lambda: self.api.delete_secret(path))

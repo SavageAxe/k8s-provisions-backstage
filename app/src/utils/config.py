@@ -1,8 +1,11 @@
 import os
+from typing import Optional
+
 from pydantic_settings import SettingsConfigDict
 from pydantic import Field
 from ...general.utils.config import BasicSettings
-
+from ..models.hooks import ResourceHookMapping
+import json
 
 
 class Config(BasicSettings):
@@ -33,8 +36,8 @@ class Config(BasicSettings):
     )
 
 
-    REGIONS: list[str] = Field(
-        description="A list of regions where resources could be created.",
+    CLUSTERS: list[str] = Field(
+        description="A list of clusters where resources could be created.",
         examples=[["dev", "test"],["qa", "int"]]
     )
 
@@ -53,16 +56,43 @@ class Config(BasicSettings):
         examples=["perimeter", "platform"],
     )
 
-    # @classmethod
-    # def get_instance(cls):
-    #     if cls._instance is None:
-    #         cls._instance = cls()
-    #     return cls._instance
+    REPO_URL: Optional[str] = None
+
+    ACCESS_TOKEN: Optional[str] = None
+
+
+    def model_post_init(self, __context):
+
+        for k, v in os.environ.items():
+
+            if k.endswith("_REPO_URL"):
+                if not v.startswith("https://"):
+                    raise ValueError(f"Invalid repo url {v!r} from {k}. Must start with 'https://'")
+                object.__setattr__(self, "REPO_URL", v)
+
+            if k.endswith("_ACCESS_TOKEN"):
+                object.__setattr__(self, "ACCESS_TOKEN", v)
+
 
     def get_resource_config(self, resource: str):
+        hooks_raw = os.getenv(f'{resource.upper()}_HOOKS')
+        # Expect a JSON object: {"pre_create_hook": "create_org", ...}
+        if hooks_raw:
+            try:
+                loaded = json.loads(hooks_raw)
+                if not isinstance(loaded, dict):
+                    loaded = {}
+            except Exception:
+                loaded = {}
+            validated = ResourceHookMapping(hooks=loaded).hooks
+        else:
+            validated = {}
+
         return {
             'VALUES_REPO_URL': os.getenv(f'{resource.upper()}_VALUES_REPO_URL'),
             'SCHEMAS_REPO_URL': os.getenv(f'{resource.upper()}_SCHEMAS_REPO_URL'),
             'VALUES_ACCESS_TOKEN': os.getenv(f'{resource.upper()}_VALUES_ACCESS_TOKEN'),
             'SCHEMAS_ACCESS_TOKEN': os.getenv(f'{resource.upper()}_SCHEMAS_ACCESS_TOKEN'),
+            # Validated mapping of event -> function name
+            'HOOKS': validated,
         }

@@ -1,4 +1,5 @@
 import json
+import asyncio
 
 import httpx
 from fastapi.responses import JSONResponse
@@ -83,3 +84,22 @@ class ArgoCDAPI:
 
         except httpx.RequestError as e:
             raise ArgoCDError(status_code=500, detail=f"Request error: {str(e)}")
+
+    async def wait_for_app_deletion(self, app_name: str, timeout: int = 60):
+        """Polls until ArgoCD returns 403 for the application (treated as deleted).
+
+        Logs and raises ArgoCDError for non-403 failures. 403 resolves the wait.
+        """
+        waited = 0
+        while waited < timeout:
+            try:
+                # If app exists, this returns successfully; keep waiting
+                await self.get_app(app_name)
+                await asyncio.sleep(1)
+                waited += 1
+            except ArgoCDError as e:
+                if e.status_code == 403:
+                    return
+                # Propagate other API errors
+                raise
+        raise ArgoCDError(status_code=504, detail=f"Timed out waiting for {app_name} deletion")

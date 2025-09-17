@@ -22,7 +22,8 @@ async def generate_router(app):
         schema_manager = SchemaLoader(resource, schemas_git, app)
         values_git = Git(config["VALUES_REPO_URL"], config["VALUES_ACCESS_TOKEN"])
         await values_git.async_init()
-        rg = RouterGenerator(app, resource, values_git, schema_manager, argocd, vault, team_name)
+        hooks_mapping = config.get("HOOKS") or {}
+        rg = RouterGenerator(app, resource, values_git, schema_manager, argocd, vault, team_name, hooks_mapping)
         await rg.run()
 
         app.state.router_generators.append(rg)
